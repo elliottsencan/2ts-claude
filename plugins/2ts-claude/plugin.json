@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "2ts-claude",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Personal Claude Code toolkit: safety hooks, code-review/bug-hunter agents, a code-standards skill, and a handoff command.",
   "author": {
     "name": "Elliott",
