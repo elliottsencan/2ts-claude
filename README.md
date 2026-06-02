@@ -46,25 +46,11 @@ Or run `scripts/install.sh`.
 
 ## Update workflow
 
-- **Ship (from anywhere):** edit, `git commit`, `git push`. That's the whole publish step.
-- **Pull (per machine):** run `scripts/sync.sh`, or:
+- **Pull:** run `scripts/sync.sh`, or:
   ```bash
   claude plugin marketplace update 2ts-claude
   claude plugin update 2ts-claude@2ts-claude
   ```
-
-Updates are not automatic — nothing changes on a machine until you pull.
-
-## Personal config (`~/.claude-personal`)
-
-These repos use a separate Claude config dir so personal work runs under a personal account, isolated from work.
-
-- `scripts/migrate-repo.sh` — run in any repo to point it at `~/.claude-personal` via direnv (writes `.envrc`, gitignores it, runs `direnv allow`).
-- `templates/` — starting points to copy into `~/.claude-personal/`:
-  - `CLAUDE.md` → cross-project conventions
-  - `settings.json` → permission allowlist + enables this plugin
-  - `mcp.json` → common MCP servers (copy to a repo as `.mcp.json`)
-  - `statusline.sh` → status line
 
 ## Tests
 
