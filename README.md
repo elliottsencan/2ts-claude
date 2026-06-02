@@ -1,6 +1,7 @@
 # 2ts-claude
 
 ![CI](https://github.com/elliottsencan/2ts-claude/actions/workflows/ci.yml/badge.svg)
+[![Built with Claude Code](https://img.shields.io/badge/built_with-Claude_Code-D97757?logo=claude&logoColor=white)](https://claude.com/claude-code)
 
 My personal [Claude Code](https://claude.com/claude-code) toolkit, packaged as a plugin.
 
