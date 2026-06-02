@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Hook tests
+        run: npm test
+
+      - name: Validate JSON manifests
+        run: |
+          for f in \
+            .claude-plugin/marketplace.json \
+            plugins/2ts-claude/plugin.json \
+            plugins/2ts-claude/hooks/hooks.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok: $f"
+          done
+
+      - name: Syntax-check hook scripts
+        run: |
+          for f in $(find plugins -name '*.cjs'); do
+            node --check "$f" && echo "ok: $f"
+          done
+
+      - name: Guard against work-repo leakage
+        # The plugin must stay clean of the source codebase. .github is excluded
+        # because this guard literally contains the words it searches for.
+        run: |
+          if grep -rniI 'grupblox\|gbx' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.github .; then
+            echo "::error::Found a grupblox/gbx reference — sanitize before merging."
+            exit 1
+          fi
+          echo "✓ clean"

@@ -1,5 +1,7 @@
 # 2ts-claude
 
+![CI](https://github.com/elliottsencan/2ts-claude/actions/workflows/ci.yml/badge.svg)
+
 My personal [Claude Code](https://claude.com/claude-code) toolkit.
 
 ## What's inside
@@ -51,6 +53,18 @@ Or run `scripts/install.sh`.
   claude plugin marketplace update 2ts-claude
   claude plugin update 2ts-claude@2ts-claude
   ```
+
+## Releasing
+
+Versioning and the changelog are automated by [release-please](https://github.com/googleapis/release-please-action) — you never edit the version or `CHANGELOG.md` by hand.
+
+1. Commit with [Conventional Commits](https://www.conventionalcommits.org): `fix:` → patch, `feat:` → minor, `feat!:`/`BREAKING CHANGE:` → major. (`chore:`/`ci:`/`docs:`/`test:` don't trigger a release.)
+2. On push to `main`, release-please opens/updates a **Release PR** that bumps `package.json` + `plugins/2ts-claude/plugin.json` and rewrites `CHANGELOG.md`.
+3. Merge the Release PR → it tags `vX.Y.Z` and creates a GitHub Release.
+
+CI (`.github/workflows/ci.yml`) gates every push/PR: hook tests, JSON manifest validation, `.cjs` syntax checks, and a guard that fails if any source work-repo identifier reappears in the distributed content.
+
+> One-time repo setting: **Settings → Actions → General → Workflow permissions →** enable *"Allow GitHub Actions to create and approve pull requests"* so release-please can open its Release PR.
 
 ## Tests
 
