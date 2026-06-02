@@ -1,6 +1,6 @@
 # 2ts-claude
 
-Personal [Claude Code](https://claude.com/claude-code) toolkit — distributed as a single plugin via its own marketplace. One `git push` to ship; one command per machine to pull.
+My personal [Claude Code](https://claude.com/claude-code) toolkit.
 
 ## What's inside
 
