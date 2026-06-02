@@ -52,7 +52,7 @@ const PRETTIER_CONFIG = '.config/prettier.config.js';
 const PRETTIER_IGNORE = '.config/.prettierignore';
 const TIMEOUT_MS = 15000;
 
-const LOG_DIR = path.join(process.env.HOME || '/tmp', '.claude', 'hooks-logs');
+const LOG_DIR = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME || '/tmp', '.claude'), 'hooks-logs');
 
 function log(data) {
     try {

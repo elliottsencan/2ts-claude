@@ -217,7 +217,7 @@ const BASH_PATTERNS = [
 
 const LEVELS = { critical: 1, high: 2, strict: 3 };
 const EMOJIS = { critical: '🔐', high: '🛡️', strict: '⚠️' };
-const LOG_DIR = path.join(process.env.HOME, '.claude', 'hooks-logs');
+const LOG_DIR = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME || '/tmp', '.claude'), 'hooks-logs');
 
 function log(data) {
     try {
