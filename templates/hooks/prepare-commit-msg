@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# prepare-commit-msg — auto-generate a commit message with Claude (haiku).
+#
+# When you commit without a message (e.g. `git commit` or `git acp`), this
+# pipes the staged diff to `claude --model haiku` and uses the result as the
+# commit message. Provide `-m` and it gets out of the way.
+#
+# Installed per-repo by scripts/install-git-helpers.sh.
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Skip for merges, squashes, amends, templates, messages from -m/-F, etc.
+if [ -n "$COMMIT_SOURCE" ]; then exit 0; fi
+
+# Skip if a message is already present (anything that isn't a comment line).
+if [ -s "$COMMIT_MSG_FILE" ] && grep -qv "^#" "$COMMIT_MSG_FILE"; then exit 0; fi
+
+# Find claude in common locations.
+CLAUDE_PATH=""
+if command -v claude &> /dev/null; then
+    CLAUDE_PATH="claude"
+elif [ -x "$HOME/.claude/local/claude" ]; then
+    CLAUDE_PATH="$HOME/.claude/local/claude"
+elif [ -x "/usr/local/bin/claude" ]; then
+    CLAUDE_PATH="/usr/local/bin/claude"
+fi
+
+# Skip silently if claude isn't installed.
+if [ -z "$CLAUDE_PATH" ]; then exit 0; fi
+
+DIFF=$(git diff --cached)
+if [ -z "$DIFF" ]; then exit 0; fi
+
+echo "🤖 Generating commit message with Claude..." >&2
+
+# Write the diff to a temp file to avoid heredoc/quoting issues.
+TMPFILE=$(mktemp)
+printf '%s\n' "$DIFF" > "$TMPFILE"
+
+MODEL="${CLAUDE_COMMIT_MODEL:-haiku}"
+PROMPT="Output ONLY a succinct git commit message. No preamble, no explanation, no code blocks, no markdown, no attribution. Just: one short summary line (50 chars max, imperative mood like 'fix bug' not 'fixed bug'). If absolutely necessary, add 1-2 bullet points after a blank line. Keep it minimal - this is a commit message, not a PR description."
+
+MESSAGE=$("$CLAUDE_PATH" --model "$MODEL" --print "$PROMPT" < "$TMPFILE" 2>/dev/null)
+
+rm -f "$TMPFILE"
+
+if [ -z "$MESSAGE" ]; then
+    echo "⚠️  Could not generate a message; falling back to the default editor." >&2
+    exit 0
+fi
+
+# Strip stray code fences and any Claude attribution/co-author lines.
+CLEANED=$(printf '%s\n' "$MESSAGE" \
+    | sed 's/^```.*//g' \
+    | sed 's/```$//g' \
+    | sed '/^🤖 Generated with/d' \
+    | sed '/Generated with \[Claude Code\]/d' \
+    | sed '/^Co-Authored-By: Claude/d')
+
+if [ -n "$(printf '%s' "$CLEANED" | tr -d '[:space:]')" ]; then
+    printf '%s\n' "$CLEANED" > "$COMMIT_MSG_FILE"
+    echo "✅ Commit message generated" >&2
+else
+    echo "⚠️  Generated message was empty; falling back to the default editor." >&2
+fi

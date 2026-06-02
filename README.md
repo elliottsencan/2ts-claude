@@ -21,6 +21,13 @@ Skill: `code-standards`, with conventions for logging, comments, code review, an
 
 Command: `handoff`, which writes a self-contained prompt to pass work to another session.
 
+Git helpers (installed by `scripts/install-git-helpers.sh`):
+
+- `git acp` — refuses to run on `main`, then `git add . && git commit && git push` in one shot.
+- `git commit` with no message generates one from the staged diff with `claude --model haiku`, via a `prepare-commit-msg` hook. Override the model with `CLAUDE_COMMIT_MODEL`.
+
+The aliases are global. The commit-message hook is per-repo — run `scripts/install-git-helpers.sh` inside each repo where you want it (the main `install.sh` adds it to this repo).
+
 ## Install
 
 ```bash
