@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/elliottsencan/2ts-claude/compare/v0.1.0...v0.1.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* write hook logs under CLAUDE_CONFIG_DIR when set ([70cd51d](https://github.com/elliottsencan/2ts-claude/commit/70cd51d370de4e7de319d8464edf7bfc264c77b7))
+
 ## 0.1.0
 
 - Initial toolkit.
