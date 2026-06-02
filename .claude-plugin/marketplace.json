@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "2ts-claude",
+  "owner": {
+    "name": "Elliott",
+    "url": "https://github.com/elliottsencan"
+  },
+  "plugins": [
+    {
+      "name": "2ts-claude",
+      "source": "./plugins/2ts-claude",
+      "description": "Personal Claude Code toolkit: safety hooks, code-review/bug-hunter agents, a code-standards skill, and a handoff command."
+    }
+  ]
+}

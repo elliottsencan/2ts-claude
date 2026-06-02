@@ -1,0 +1,9 @@
+{
+  "name": "2ts-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal Claude Code toolkit (marketplace + plugin).",
+  "scripts": {
+    "test": "node --test \"plugins/2ts-claude/hooks/tests/**/*.test.cjs\""
+  }
+}

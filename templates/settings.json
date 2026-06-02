@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "plan",
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(node --test:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Read(//Users/**)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude-personal/statusline.sh"
+  },
+  "enabledPlugins": {
+    "2ts-claude@2ts-claude": true
+  },
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
+  "theme": "auto"
+}
