@@ -153,7 +153,38 @@ const COMPONENTS = {
     default: false,
     ops: [{ type: 'vendorFile', src: 'commands/pr.md', dest: '.claude/commands/pr.md' }],
   },
+
+  // Personal (local scope): query your own elliottsencan.com reading wiki from
+  // whatever repo you're working in. Reads $ELLIOTTSENCAN_WIKI_DIR; installed
+  // just for you (settings.local.json + .claude/local/, git-ignored), never
+  // committed onto teammates.
+  'command-wiki': {
+    title: 'wiki command',
+    description: 'Add the /wiki command to query your personal reading wiki on demand (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
+    default: false,
+    scope: 'local',
+    ops: [
+      { type: 'vendorFile', src: 'commands/wiki.md', dest: '.claude/commands/wiki.md' },
+      vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
+    ],
+  },
+
+  'wiki-surface': {
+    title: 'wiki surface hook',
+    description: 'Quietly surface relevant wiki entries on each prompt, above a confidence threshold (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
+    default: false,
+    scope: 'local',
+    ops: [
+      vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
+      vendorHook('assets/wiki/wiki-surface.cjs', '.claude/local/hooks/wiki-surface.cjs'),
+      { type: 'hookWire', event: 'UserPromptSubmit', matcher: '*', command: hookCommand('.claude/local/hooks/wiki-surface.cjs') },
+    ],
+  },
 };
+
+function scopeOf(id) {
+  return COMPONENTS[id].scope || 'shared';
+}
 
 function defaultComponents() {
   return Object.keys(COMPONENTS).filter((id) => COMPONENTS[id].default);
@@ -172,4 +203,4 @@ function resolve(selection) {
   return ids;
 }
 
-module.exports = { COMPONENTS, defaultComponents, allComponents, resolve };
+module.exports = { COMPONENTS, scopeOf, defaultComponents, allComponents, resolve };

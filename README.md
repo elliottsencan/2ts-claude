@@ -72,6 +72,10 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
 | `command-pr` | | `/pr` command (drafts a copy-ready PR title + body) |
+| `command-wiki` | | 🔒 `/wiki` — query your personal reading wiki on demand (reads `$ELLIOTTSENCAN_WIKI_DIR`) |
+| `wiki-surface` | | 🔒 quietly surface relevant wiki entries on each prompt, above a confidence threshold |
+
+🔒 = **local scope**: installed just for you (`.claude/settings.local.json` + `.claude/local/`, git-ignored via a managed `.claude/.gitignore`), never committed onto teammates. Everything else is **shared** — merged into the repo's committed `.claude/` so it version-controls and reaches the team.
 
 ## Personal global config
 
