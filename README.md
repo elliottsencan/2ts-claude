@@ -65,6 +65,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `mcp` | | `context7` and `playwright` MCP servers |
 | `ci-secret-scan` | | gitleaks GitHub Action that scans for committed secrets (CI, no local friction) |
 | `editorconfig` | | Portable `.editorconfig` (utf-8, lf, final newline, 2-space) |
+| `gitattributes` | | `.gitattributes`: normalize line endings, keep lockfiles out of diffs/language stats |
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |

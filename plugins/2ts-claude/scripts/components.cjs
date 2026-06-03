@@ -100,6 +100,13 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/editorconfig', dest: '.editorconfig' }],
   },
 
+  gitattributes: {
+    title: 'Git attributes',
+    description: 'Add a .gitattributes that normalizes line endings and keeps lockfiles out of diffs/language stats.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/gitattributes', dest: '.gitattributes' }],
+  },
+
   agents: {
     title: 'Review agents',
     description: 'Add the code-reviewer and bug-hunter subagents.',

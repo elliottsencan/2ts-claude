@@ -295,6 +295,7 @@ describe('remove', () => {
 describe('durable repo-file components', () => {
   const cases = [
     { id: 'editorconfig', dest: '.editorconfig' },
+    { id: 'gitattributes', dest: '.gitattributes' },
   ];
 
   for (const { id, dest } of cases) {
