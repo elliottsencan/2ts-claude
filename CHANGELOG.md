@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/elliottsencan/2ts-claude/compare/v0.7.1...v0.8.0) (2026-06-03)
+
+
+### Features
+
+* add release-please /setup component + post-apply notes mechanism ([c1041f2](https://github.com/elliottsencan/2ts-claude/commit/c1041f20929f407217457b71c1ea7590e7d72c9d))
+* release-please /setup component + post-apply notes ([307911f](https://github.com/elliottsencan/2ts-claude/commit/307911f24f9361dcc8a52a583284d33b581e6b4f))
+
 ## [0.7.1](https://github.com/elliottsencan/2ts-claude/compare/v0.7.0...v0.7.1) (2026-06-03)
 
 
