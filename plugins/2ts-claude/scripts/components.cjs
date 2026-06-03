@@ -184,15 +184,16 @@ const COMPONENTS = {
   },
 
   // Personal (local scope): query your own elliottsencan.com reading wiki from
-  // whatever repo you're working in. Reads $ELLIOTTSENCAN_WIKI_DIR; installed
-  // just for you (settings.local.json + .claude/local/, git-ignored), never
-  // committed onto teammates.
+  // whatever repo you're working in. Serves a background-refreshed cache of the
+  // canonical post-synthesis index (ELLIOTTSENCAN_WIKI_INDEX_URL), falling back
+  // to a local clone (ELLIOTTSENCAN_WIKI_DIR). Installed just for you
+  // (settings.local.json + .claude/local/, git-ignored), never onto teammates.
   'command-wiki': {
     title: 'wiki command',
-    description: 'Add the /wiki command to query your personal reading wiki on demand (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
+    description: 'Add the /wiki command to query your personal reading wiki on demand (local scope).',
     default: false,
     scope: 'local',
-    notes: ['Point the ELLIOTTSENCAN_WIKI_DIR env var at your wiki checkout — /wiki has nothing to query until it is set.'],
+    notes: ['Works out of the box against the published index (ELLIOTTSENCAN_WIKI_INDEX_URL, default https://elliottsencan.com/wiki.json), refreshed in the background. Set ELLIOTTSENCAN_WIKI_DIR for an offline/local-clone fallback, or ELLIOTTSENCAN_WIKI_INDEX_URL= (empty) to disable remote. Cache TTL via WIKI_INDEX_TTL (seconds, default 21600).'],
     ops: [
       { type: 'vendorFile', src: 'assets/commands/wiki.md', dest: '.claude/commands/wiki.md' },
       vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
@@ -201,10 +202,10 @@ const COMPONENTS = {
 
   'wiki-surface': {
     title: 'wiki surface hook',
-    description: 'Quietly surface relevant wiki entries on each prompt, above a confidence threshold (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
+    description: 'Quietly surface relevant wiki entries on each prompt, above a confidence threshold (local scope).',
     default: false,
     scope: 'local',
-    notes: ['Point the ELLIOTTSENCAN_WIKI_DIR env var at your wiki checkout — the hook surfaces nothing until it is set. Tune sensitivity with WIKI_SURFACE_THRESHOLD.'],
+    notes: ['Works out of the box against the published index (ELLIOTTSENCAN_WIKI_INDEX_URL, default https://elliottsencan.com/wiki.json), refreshed in the background; set ELLIOTTSENCAN_WIKI_DIR for an offline fallback. Tune sensitivity with WIKI_SURFACE_THRESHOLD and cache freshness with WIKI_INDEX_TTL (seconds, default 21600).'],
     ops: [
       vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
       vendorHook('assets/wiki/wiki-surface.cjs', '.claude/local/hooks/wiki-surface.cjs'),
