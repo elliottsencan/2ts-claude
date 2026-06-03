@@ -4,6 +4,14 @@
 // repo. `src` paths are relative to the plugin root (CLAUDE_PLUGIN_ROOT);
 // `dest` paths are relative to the target repo root.
 //
+// Vendor-source templates (commands, skills, agents, hooks that /setup copies
+// into a target repo) live under assets/ — NOT under the plugin's own
+// commands/, skills/, or agents/ dirs, which Claude Code auto-discovers as
+// ambient features for the operator. Keeping them in assets/ means a template
+// reaches a repo only by being vendored, never by virtue of the plugin being
+// installed. The plugin's ambient surface is intentionally just the operator
+// controls: /setup, /research-refresh, and the hooks wired in hooks/hooks.json.
+//
 // Operation types (handled in apply.cjs):
 //   vendorFile      { src, dest, executable? }   copy a file into the repo, hashed in the manifest
 //   conventions     { id, src }                   upsert a marker block (AGENTS.md if present, else CLAUDE.md) + @AGENTS.md import
@@ -128,8 +136,8 @@ const COMPONENTS = {
     description: 'Add the code-reviewer and bug-hunter subagents.',
     default: false,
     ops: [
-      { type: 'vendorFile', src: 'agents/code-reviewer.md', dest: '.claude/agents/code-reviewer.md' },
-      { type: 'vendorFile', src: 'agents/bug-hunter.md', dest: '.claude/agents/bug-hunter.md' },
+      { type: 'vendorFile', src: 'assets/agents/code-reviewer.md', dest: '.claude/agents/code-reviewer.md' },
+      { type: 'vendorFile', src: 'assets/agents/bug-hunter.md', dest: '.claude/agents/bug-hunter.md' },
     ],
   },
 
@@ -137,21 +145,21 @@ const COMPONENTS = {
     title: 'code-standards skill',
     description: 'Add the code-standards skill (logging, comments, review, debugging).',
     default: false,
-    ops: [{ type: 'vendorFile', src: 'skills/code-standards/SKILL.md', dest: '.claude/skills/code-standards/SKILL.md' }],
+    ops: [{ type: 'vendorFile', src: 'assets/skills/code-standards/SKILL.md', dest: '.claude/skills/code-standards/SKILL.md' }],
   },
 
   'command-handoff': {
     title: 'handoff command',
     description: 'Add the /handoff command for passing work to another session.',
     default: false,
-    ops: [{ type: 'vendorFile', src: 'commands/handoff.md', dest: '.claude/commands/handoff.md' }],
+    ops: [{ type: 'vendorFile', src: 'assets/commands/handoff.md', dest: '.claude/commands/handoff.md' }],
   },
 
   'command-pr': {
     title: 'pr command',
     description: 'Add the /pr command that drafts a copy-ready PR title and body from the branch state.',
     default: false,
-    ops: [{ type: 'vendorFile', src: 'commands/pr.md', dest: '.claude/commands/pr.md' }],
+    ops: [{ type: 'vendorFile', src: 'assets/commands/pr.md', dest: '.claude/commands/pr.md' }],
   },
 
   // Personal (local scope): query your own elliottsencan.com reading wiki from
@@ -164,7 +172,7 @@ const COMPONENTS = {
     default: false,
     scope: 'local',
     ops: [
-      { type: 'vendorFile', src: 'commands/wiki.md', dest: '.claude/commands/wiki.md' },
+      { type: 'vendorFile', src: 'assets/commands/wiki.md', dest: '.claude/commands/wiki.md' },
       vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
     ],
   },

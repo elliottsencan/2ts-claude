@@ -4,13 +4,15 @@
 // config (CLAUDE.md, .claude/). See components.cjs for the operation vocabulary.
 //
 // Usage:
-//   apply.cjs [--plan|--apply|--remove] [--components a,b,c|--all]
+//   apply.cjs [--plan|--apply|--remove|--list] [--components a,b,c|--all]
 //             [--repo DIR] [--plugin-root DIR]
 //             [--resolutions FILE] [--force] [--json]
 //
 // --plan (default) computes and prints changes/conflicts without writing.
 // --apply writes; conflicts default to "skip" unless --force or a resolution says otherwise.
 // --remove undoes what the manifest recorded.
+// --list prints the component catalog (id, title, description, default, scope);
+//   needs no repo, and is what /setup reads to build its interactive menu.
 
 const fs = require('fs');
 const path = require('path');
@@ -27,6 +29,7 @@ function parseArgs(argv) {
     if (a === '--plan') out.mode = 'plan';
     else if (a === '--apply') out.mode = 'apply';
     else if (a === '--remove') out.mode = 'remove';
+    else if (a === '--list') out.mode = 'list';
     else if (a === '--all') out.selection = 'all';
     else if (a === '--components') out.selection = argv[++i];
     else if (a === '--repo') out.repo = argv[++i];
@@ -706,6 +709,27 @@ function pruneEmptyDirs(dir, stopAt) {
   }
 }
 
+// ---------- catalog ----------
+// The authoritative, machine-readable list of selectable components. /setup reads
+// this (via --list --json) to render its menu, so the menu never drifts from the
+// registry. Needs no target repo.
+function catalog() {
+  return components.allComponents().map((id) => {
+    const c = components.COMPONENTS[id];
+    return { id, title: c.title, description: c.description, default: !!c.default, scope: components.scopeOf(id) };
+  });
+}
+
+function printCatalog(list) {
+  const lines = ['Available components (✓ = applied by a bare `/setup`):', ''];
+  for (const c of list) {
+    const mark = c.default ? '✓' : ' ';
+    const tag = c.scope === 'local' ? ' [local]' : '';
+    lines.push(`  ${mark} ${c.id}${tag} — ${c.description}`);
+  }
+  process.stderr.write(lines.join('\n') + '\n');
+}
+
 // ---------- reporting ----------
 function printHuman(plan, ctx, mode) {
   const lines = [];
@@ -730,6 +754,14 @@ function printHuman(plan, ctx, mode) {
 // ---------- main ----------
 function main() {
   const opts = parseArgs(process.argv.slice(2));
+
+  if (opts.mode === 'list') {
+    const list = catalog();
+    if (opts.json) process.stdout.write(JSON.stringify({ components: list }, null, 2) + '\n');
+    else printCatalog(list);
+    return;
+  }
+
   const repoRoot = resolveRepoRoot(opts.repo);
   const pluginRoot = resolvePluginRoot(opts.pluginRoot);
 
@@ -777,4 +809,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { parseArgs, makeContext, buildPlan, applyPlan, removeAll, resolveRepoRoot, resolvePluginRoot };
+module.exports = { parseArgs, makeContext, buildPlan, applyPlan, removeAll, resolveRepoRoot, resolvePluginRoot, catalog };
