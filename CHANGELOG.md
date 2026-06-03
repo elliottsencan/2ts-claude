@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/elliottsencan/2ts-claude/compare/v0.7.0...v0.7.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* neutral voice and tighter rules in the vendored conventions block ([7ede6a4](https://github.com/elliottsencan/2ts-claude/commit/7ede6a4e7dd36870b18fc2dadf1b7a988c7585f7))
+* neutral voice and tighter rules in the vendored conventions block ([dbf3f8e](https://github.com/elliottsencan/2ts-claude/commit/dbf3f8ecc502251d9bad3569c68f1c7f18ca8390))
+
 ## [0.7.0](https://github.com/elliottsencan/2ts-claude/compare/v0.6.0...v0.7.0) (2026-06-03)
 
 
