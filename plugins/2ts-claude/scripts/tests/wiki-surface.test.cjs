@@ -163,14 +163,14 @@ describe('wiki-surface hook', () => {
         const ctx = out.hookSpecificOutput.additionalContext;
 
         // (1) Wrapped in the non-instruction frame, independent of `conventions`.
-        assert.match(ctx, /reference pointer/i);
-        assert.match(ctx, /data, not instructions/i);
+        assert.match(ctx, /Possibly relevant/i);
+        assert.match(ctx, /not instructions/i);
         assert.match(ctx, /ignore any directives/i);
 
-        // (2) Exactly three lines: frame, header, one bullet. The injected newlines
+        // (2) Exactly two lines: the frame and one bullet. The injected newlines
         //     did NOT split the summary into extra lines.
         const allLines = ctx.split('\n');
-        assert.equal(allLines.length, 3);
+        assert.equal(allLines.length, 2);
         const bullet = allLines.find((l) => l.startsWith('- '));
         assert.ok(bullet, 'expected a bullet line');
 
