@@ -67,6 +67,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `editorconfig` | | Portable `.editorconfig` (utf-8, lf, final newline, 2-space) |
 | `gitattributes` | | `.gitattributes`: normalize line endings, keep lockfiles out of diffs/language stats |
 | `pr-template` | | `.github/pull_request_template.md` (summary, changes, testing, risk/rollback) |
+| `dependabot` | | `.github/dependabot.yml`: grouped weekly github-actions + npm updates |
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |

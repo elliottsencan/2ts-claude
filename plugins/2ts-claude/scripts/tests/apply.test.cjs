@@ -297,6 +297,7 @@ describe('durable repo-file components', () => {
     { id: 'editorconfig', dest: '.editorconfig' },
     { id: 'gitattributes', dest: '.gitattributes' },
     { id: 'pr-template', dest: '.github/pull_request_template.md' },
+    { id: 'dependabot', dest: '.github/dependabot.yml' },
   ];
 
   for (const { id, dest } of cases) {

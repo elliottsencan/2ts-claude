@@ -114,6 +114,13 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/github/pull_request_template.md', dest: '.github/pull_request_template.md' }],
   },
 
+  dependabot: {
+    title: 'Dependabot',
+    description: 'Add a grouped, weekly Dependabot config for github-actions and npm (low PR noise).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/github/dependabot.yml', dest: '.github/dependabot.yml' }],
+  },
+
   agents: {
     title: 'Review agents',
     description: 'Add the code-reviewer and bug-hunter subagents.',
