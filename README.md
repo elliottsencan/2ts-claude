@@ -7,8 +7,10 @@ My personal [Claude Code](https://claude.com/claude-code) toolkit, packaged as a
 
 It works in two modes:
 
-1. **Distribute it once** — install the plugin to get the `/setup` command (and the toolkit's agents/skills) in your sessions.
+1. **Distribute it once** — install the plugin to get the `/setup` command in your sessions.
 2. **Stamp durable defaults into a repo** — run `/setup` in any repo to merge sensible defaults into that repo's **committed** `CLAUDE.md` and `.claude/`, so they version-control and reach your teammates.
+
+The plugin is a *delivery vehicle*: its only ambient surface is the operator controls (`/setup`, `/research-refresh`, and a drift-reminder hook). The agents, skills, and commands it ships are vendor templates under `assets/` — they reach a repo only by being vendored through `/setup`, never just because the plugin is installed.
 
 A plugin can't write into a repo itself (its files live isolated in `~/.claude/plugins/cache/`). What it *can* do is ship the `/setup` command that does the durable writes — selectively, and without clobbering setup you already have.
 
@@ -31,12 +33,18 @@ claude plugin update 2ts-claude@2ts-claude
 In the repo you want to configure:
 
 ```
-/setup                          # default set: safety-hooks, conventions, settings
-/setup all                      # everything
-/setup statusline,agents,mcp    # pick specific components
+/setup                          # show the component menu and pick interactively
+/setup all                      # everything, no menu
+/setup statusline,agents,mcp    # name components directly, no menu
 ```
 
-`/setup` shows a plan, asks you about any conflicts (it never silently overwrites your work), applies the changes, then reminds you to commit. Works the same on a brand-new repo or one with mature Claude infrastructure. Re-running is safe and idempotent.
+Run bare, `/setup` lists every available component (defaults marked) and lets you choose — take the defaults, add extras on top, pick an exact set, or take everything. Pass component names (or `all`) to skip the menu. Either way it then shows a plan, asks you about any conflicts (it never silently overwrites your work), applies the changes, then reminds you to commit. Works the same on a brand-new repo or one with mature Claude infrastructure. Re-running is safe and idempotent.
+
+The menu is generated from the engine's own catalog (`apply.cjs --list`), so it always matches what's actually shipped:
+
+```bash
+node plugins/2ts-claude/scripts/apply.cjs --list          # the component catalog
+```
 
 Under the hood it calls a deterministic engine, which you can also run directly:
 

@@ -1,41 +1,56 @@
 ---
 description: Materialize selected 2ts-claude defaults into THIS repo's committed config (CLAUDE.md, .claude/), merging without clobbering existing setup.
-argument-hint: "[component,component | all]  (default: safety-hooks, conventions, settings)"
+argument-hint: "[component,component | all]  (optional — omit to pick from a menu)"
 ---
 
-Apply durable, committed Claude Code defaults into the current repository using the bundled engine at `${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs`. The engine does all mechanical merging; your job is to drive it and resolve conflicts with the user. **Do not hand-edit `.claude/` or `CLAUDE.md` yourself — always go through the engine** so the manifest stays accurate.
+Apply durable, committed Claude Code defaults into the current repository using the bundled engine at `${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs`. The engine does all mechanical merging; your job is to help the user choose components and resolve conflicts. **Do not hand-edit `.claude/` or `CLAUDE.md` yourself — always go through the engine** so the manifest stays accurate.
 
-Selection from the user: `$ARGUMENTS` (empty = the default component set).
+Selection from the user: `$ARGUMENTS` (may be empty).
 
 Follow these steps:
 
-1. **Plan.** Run the engine in plan mode and capture the JSON:
+1. **Decide the selection — interactively when the user didn't name components.**
+
+   - If `$ARGUMENTS` is non-empty, use it as-is (a comma-separated list, or `all`) and skip straight to step 2. This is the power-user path.
+   - If `$ARGUMENTS` is empty, **don't silently fall back to the defaults — show the menu and let the user pick.** Read the live catalog (never hardcode it):
+
+     ```
+     node "${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs" --list --json
+     ```
+
+     Present the components grouped for easy scanning — the three defaults (`default: true`) first, marked as the baseline; then the other shared components; then any `scope: "local"` ones (flag these as "personal, git-ignored, not committed onto teammates"). Give each its one-line description from the catalog. Then ask the user which to apply, making clear they can:
+     - take **just the defaults** (press enter / "defaults"),
+     - take the defaults **plus** specific extras (e.g. "defaults + statusline, agents"),
+     - pick an **exact** set, or
+     - take **everything** ("all").
+
+     Resolve their answer to a concrete component-id list (fold in the defaults unless they explicitly chose a narrower exact set). Use that list as the selection below.
+
+2. **Plan.** Run the engine in plan mode with the resolved selection and capture the JSON:
 
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs" --plan --json \
-     $([ -n "$ARGUMENTS" ] && echo --components "$ARGUMENTS")
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs" --plan --json --components "<resolved,list>"
    ```
 
-   (Omit `--components` entirely when `$ARGUMENTS` is empty so the default set is used. Use `--all` only if the user said "all" / "everything".) The engine auto-detects the repo root via `git rev-parse`; if this isn't a git repo, tell the user and stop — durable config only makes sense in a repo they'll commit.
+   (Use `--all` instead of `--components` only if the user chose everything. Omit both only if the user explicitly wants the bare default set.) The engine auto-detects the repo root via `git rev-parse`; if this isn't a git repo, tell the user and stop — durable config only makes sense in a repo they'll commit.
 
-2. **Summarize the plan.** From the JSON `ops`, give the user a concise list of what will be created/merged, grouped by component. Note that nothing has been written yet.
+3. **Summarize the plan.** From the JSON `ops`, give the user a concise list of what will be created/merged, grouped by component. Note that nothing has been written yet.
 
-3. **Resolve conflicts.** If `conflicts` is non-empty, present each one and ask the user how to handle it — they each mean "you (or this repo) already have something here":
+4. **Resolve conflicts.** If `conflicts` is non-empty, present each one and ask the user how to handle it — they each mean "you (or this repo) already have something here":
    - `file:<path>` — a vendored file exists and differs from what we'd write (you customized it, or it predates us).
    - `setting:<key>` — a settings scalar (e.g. `permissions.defaultMode`) already has a different value.
    - `conventions:<id>` — the managed conventions block (in CLAUDE.md or AGENTS.md) was edited by hand since we last wrote it.
 
    For each, offer **skip** (keep their version — the safe default) or **overwrite** (replace with ours). Offer to show the diff first when useful. Build a resolutions object `{ "<conflictKey>": "overwrite" | "skip" }`.
 
-4. **Apply.** Write the resolutions to a temp file and run:
+5. **Apply.** Write the resolutions to a temp file and run (reuse the same selection flag from step 2):
 
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs" --apply --resolutions /tmp/2ts-resolutions.json \
-     $([ -n "$ARGUMENTS" ] && echo --components "$ARGUMENTS")
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/apply.cjs" --apply --resolutions /tmp/2ts-resolutions.json --components "<resolved,list>"
    ```
 
    (If there were no conflicts, you can skip the `--resolutions` flag.) Unspecified conflicts default to skip; never pass `--force` unless the user explicitly asked to overwrite everything.
 
-5. **Report and remind.** Summarize what changed. Then remind the user: these changes are **durable only once committed** — show `git status`/`git diff` of `CLAUDE.md` and `.claude/`, and suggest they review and commit so teammates pick them up on their next clone/pull. Mention that re-running `/setup` later is safe and idempotent, and that `apply.cjs --remove` cleanly reverses what was added.
+6. **Report and remind.** Summarize what changed. Then remind the user: these changes are **durable only once committed** — show `git status`/`git diff` of `CLAUDE.md` and `.claude/`, and suggest they review and commit so teammates pick them up on their next clone/pull. Mention that re-running `/setup` later is safe and idempotent, and that `apply.cjs --remove` cleanly reverses what was added.
 
-Available components (for reference when the user asks what they can pick): `safety-hooks`, `conventions`, `settings` (defaults), `workflow-hooks`, `notify-hook`, `statusline`, `mcp`, `agents`, `skill-code-standards`, `command-handoff`. The first three are the default set.
+The component list is intentionally **not** duplicated here — `--list` is the single source of truth, so the menu always matches what the engine actually ships.

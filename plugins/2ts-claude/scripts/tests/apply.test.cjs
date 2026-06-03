@@ -516,6 +516,28 @@ describe('wiki components (local scope)', () => {
   });
 });
 
+describe('catalog (--list)', () => {
+  it('lists every registered component with the fields /setup needs', () => {
+    const list = engine.catalog();
+    assert.equal(list.length, components.allComponents().length, 'one entry per component');
+    for (const entry of list) {
+      assert.ok(components.COMPONENTS[entry.id], `${entry.id} is a real component`);
+      assert.equal(typeof entry.title, 'string');
+      assert.equal(typeof entry.description, 'string');
+      assert.equal(typeof entry.default, 'boolean');
+      assert.ok(entry.scope === 'shared' || entry.scope === 'local', 'scope is shared|local');
+    }
+  });
+
+  it('marks exactly the default set as default and tags local-scope components', () => {
+    const list = engine.catalog();
+    const defaults = list.filter((c) => c.default).map((c) => c.id).sort();
+    assert.deepEqual(defaults, components.defaultComponents().sort(), 'defaults match the registry');
+    const locals = list.filter((c) => c.scope === 'local').map((c) => c.id);
+    assert.ok(locals.includes('command-wiki') && locals.includes('wiki-surface'), 'wiki components flagged local');
+  });
+});
+
 describe('manifest', () => {
   it('stamps the plugin version on apply', () => {
     apply(['conventions']);
