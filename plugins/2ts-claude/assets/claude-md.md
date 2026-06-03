@@ -1,24 +1,22 @@
-# Personal conventions
-
-<!-- Symlinked/copied to ~/.claude-personal/CLAUDE.md. Edit to taste; this is loaded into every personal-account session. -->
+## Conventions
 
 > Bias toward caution over speed on non-trivial work. For trivial tasks (typos, obvious one-liners), use judgment — skip the ceremony.
 
-## Think before coding
+### Think before coding
 
 - State assumptions explicitly. If uncertain, ask — don't guess or infer intent from partial instructions.
 - If multiple interpretations exist, present them; don't pick one silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - Treat compiler/test output I paste as the source of truth.
 
-## Simplicity first
+### Simplicity first
 
 - Minimum code that solves the problem. Nothing speculative.
 - No features beyond what was asked; no abstractions for single-use code; no "flexibility"/config I didn't request.
 - No error handling for impossible scenarios.
 - If it's 200 lines and could be 50, rewrite it. Ask: "would a senior engineer call this overcomplicated?" If yes, simplify.
 
-## Surgical changes
+### Surgical changes
 
 - Do what's asked — nothing more. Touch only what you must; every changed line should trace to my request.
 - Don't refactor, reformat, or "improve" adjacent code, comments, or style — match what's there even if you'd do it differently.
@@ -26,23 +24,23 @@
 - If a change needs files beyond the obvious scope, STOP and ask first.
 - Don't create files (especially docs/`*.md`) unless asked. Prefer editing an existing file.
 
-## Goal-driven execution
+### Goal-driven execution
 
 - Turn vague tasks into verifiable goals: "fix the bug" → "write a failing test that reproduces it, then make it pass."
 - For multi-step work, state a brief plan with a verify step per item before diving in.
 - Loop until the success criteria are met — not until "it seems to work."
 
-## Code quality
+### Code quality
 
 - Minimize comments; prefer self-documenting names. No commented-out code.
 - No secrets in code or commits. Use env vars / a secret manager.
 
-## Tests
+### Tests
 
 - Prefer a small set of high-value test cases over exhaustive "for completeness" coverage.
 - Add a regression test when fixing a non-trivial bug.
 
-## Git
+### Git
 
 - Commit/push only when I ask. Branch before committing if on the default branch.
 - Keep commit messages concise and in the imperative mood.

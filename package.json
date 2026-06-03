@@ -4,6 +4,6 @@
   "private": true,
   "description": "Personal Claude Code toolkit (marketplace + plugin).",
   "scripts": {
-    "test": "node --test \"plugins/2ts-claude/hooks/tests/**/*.test.cjs\""
+    "test": "node --test \"plugins/2ts-claude/hooks/tests/**/*.test.cjs\" \"plugins/2ts-claude/scripts/tests/**/*.test.cjs\""
   }
 }

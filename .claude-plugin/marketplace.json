@@ -9,7 +9,7 @@
     {
       "name": "2ts-claude",
       "source": "./plugins/2ts-claude",
-      "description": "Personal Claude Code toolkit: safety hooks, code-review/bug-hunter agents, a code-standards skill, and a handoff command."
+      "description": "Personal Claude Code toolkit. Ships /setup, which durably merges sensible defaults (CLAUDE.md, .claude/ hooks/agents/skills, settings) into a repo without clobbering existing setup."
     }
   ]
 }
