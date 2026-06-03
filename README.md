@@ -71,6 +71,15 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 
 `templates/settings.json` is a separate artifact — a starting point for your *own* `~/.claude` config (default plan mode, enabled plugins, status line). `scripts/install.sh` / `sync.sh` install and update the plugin into your user config. These are distinct from the per-repo `/setup` flow above.
 
+### Git helpers
+
+Installed by `scripts/install-git-helpers.sh` (also run by `install.sh` for this repo):
+
+- `git acp` — refuses to run on `main`, then `git add . && git commit && git push` in one shot.
+- `git commit` with no message generates one from the staged diff with `claude --model haiku`, via a `prepare-commit-msg` hook. Override the model with `CLAUDE_COMMIT_MODEL`.
+
+The aliases are global. The commit-message hook is per-repo — run `scripts/install-git-helpers.sh` inside each repo where you want it.
+
 ## Tests
 
 ```bash

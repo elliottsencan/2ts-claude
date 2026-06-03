@@ -12,5 +12,10 @@ echo "Installing plugin: 2ts-claude@2ts-claude"
 claude plugin install 2ts-claude@2ts-claude
 
 echo ""
+echo "Setting up git helpers (acp alias + Claude commit messages)..."
+"$(dirname "${BASH_SOURCE[0]}")/install-git-helpers.sh"
+
+echo ""
 echo "Done. Verify with:  claude plugin list"
 echo "Tip: run scripts/sync.sh later to pull updates."
+echo "Tip: run scripts/install-git-helpers.sh inside any repo to add the commit-message hook there."
