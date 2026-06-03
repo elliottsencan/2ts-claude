@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/elliottsencan/2ts-claude/compare/v0.2.0...v0.3.0) (2026-06-03)
+
+
+### Features
+
+* /setup applier for durable, non-clobbering repo defaults ([55d4093](https://github.com/elliottsencan/2ts-claude/commit/55d4093f7b2fd3fb1aa5f241443a4d3ad920a0a5))
+* add /setup applier that durably stamps defaults into a repo ([321d51b](https://github.com/elliottsencan/2ts-claude/commit/321d51bb01d413191d9255589647ce79a3e49632))
+
 ## [0.2.0](https://github.com/elliottsencan/2ts-claude/compare/v0.1.1...v0.2.0) (2026-06-02)
 
 
