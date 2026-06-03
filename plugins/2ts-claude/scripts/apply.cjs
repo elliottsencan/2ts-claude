@@ -60,7 +60,11 @@ function readFileOr(p, fallback) {
 }
 function readJsonOr(p, fallback) {
   if (!fs.existsSync(p)) return fallback;
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (err) {
+    throw new Error(`Could not parse JSON at ${p}: ${err.message}`);
+  }
 }
 function deepEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -78,30 +82,39 @@ function setPath(obj, keyPath, value) {
   o[keys[keys.length - 1]] = value;
 }
 
+function readPluginVersion(pluginRoot) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(pluginRoot, 'plugin.json'), 'utf8')).version || null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------- engine context: lazily-loaded working copies of mutated files ----------
 function makeContext(repoRoot, pluginRoot) {
+  const textCache = new Map(); // relPath -> content
   return {
     repoRoot,
     pluginRoot,
     manifest: manifestLib.read(repoRoot),
-    touched: new Set(),
+    touched: new Set(), // 'settings' | 'mcp'
+    touchedText: new Set(), // relative paths of text files to flush
     _settings: undefined,
-    _claudeMd: undefined,
     _mcp: undefined,
+    // Generic lazily-loaded text file (CLAUDE.md, AGENTS.md, ...).
+    text(rel) {
+      if (!textCache.has(rel)) textCache.set(rel, readFileOr(path.join(repoRoot, rel), ''));
+      return textCache.get(rel);
+    },
+    setText(rel, content) {
+      textCache.set(rel, content);
+      this.touchedText.add(rel);
+    },
     get settings() {
       if (this._settings === undefined) {
         this._settings = readJsonOr(path.join(repoRoot, '.claude', 'settings.json'), {});
       }
       return this._settings;
-    },
-    get claudeMd() {
-      if (this._claudeMd === undefined) {
-        this._claudeMd = readFileOr(path.join(repoRoot, 'CLAUDE.md'), '');
-      }
-      return this._claudeMd;
-    },
-    set claudeMd(v) {
-      this._claudeMd = v;
     },
     get mcp() {
       if (this._mcp === undefined) {
@@ -149,26 +162,73 @@ function applyVendorFile(ctx, planned, decision) {
   else ctx.manifest.files.push({ path: planned.target, sha256: planned._newHash });
 }
 
-function planClaudeMdBlock(ctx, op) {
-  const blockBody = fs.readFileSync(srcAbs(ctx, op.src), 'utf8').replace(/\n+$/, '');
-  const content = ctx.claudeMd;
-  const currentBody = merge.readBlockBody(content, op.id);
-  const upsert = merge.upsertBlock(content, op.id, blockBody);
-  let conflict = false;
-  if (currentBody !== null) {
-    const rec = ctx.manifest.claudeMd[op.id];
-    if (rec && rec.sha256 !== merge.sha256(currentBody)) conflict = true; // user edited inside our block
-  }
-  return { type: 'claudeMdBlock', target: 'CLAUDE.md', action: conflict ? 'conflict' : upsert.action, conflict, conflictKey: `claudemd:${op.id}`, _id: op.id, _content: upsert.content, _blockBody: blockBody };
+const AGENTS_IMPORT_ID = 'agents-import';
+
+function hasAgentsImport(claudeMd) {
+  return /(^|\n)@AGENTS\.md(\s|$)/.test(claudeMd) || merge.readBlockBody(claudeMd, AGENTS_IMPORT_ID) !== null;
 }
-function applyClaudeMdBlock(ctx, planned, decision) {
-  if (planned.action === 'noop') return;
-  if (planned.conflict && decision !== 'overwrite') return;
-  ctx.claudeMd = planned._content;
-  ctx.touched.add('claudeMd');
-  // Store hash of what readBlockBody will return next time, so re-runs are stable.
-  const writtenBody = merge.readBlockBody(planned._content, planned._id);
-  ctx.manifest.claudeMd[planned._id] = { sha256: merge.sha256(writtenBody) };
+
+// Conventions block: if the repo uses AGENTS.md, write the block there (the
+// cross-tool source of truth) and ensure CLAUDE.md imports it via @AGENTS.md;
+// otherwise write the block straight into CLAUDE.md.
+function planConventions(ctx, op) {
+  const blockBody = fs.readFileSync(srcAbs(ctx, op.src), 'utf8').replace(/\n+$/, '');
+  const agentsExists = fs.existsSync(path.join(ctx.repoRoot, 'AGENTS.md'));
+  const targetRel = agentsExists ? 'AGENTS.md' : 'CLAUDE.md';
+
+  // Where does our managed block currently live? If a prior run recorded a
+  // different file (e.g. CLAUDE.md before AGENTS.md appeared), the block must
+  // migrate to the new target rather than be duplicated/orphaned.
+  const rec = ctx.manifest.claudeMd[op.id];
+  const recFile = rec && rec.file;
+  const oldFile = recFile && recFile !== targetRel && merge.readBlockBody(ctx.text(recFile), op.id) !== null ? recFile : null;
+  const existingFile = oldFile || targetRel;
+  const currentBody = merge.readBlockBody(ctx.text(existingFile), op.id);
+
+  // Conflict iff the block that currently exists was edited since we wrote it —
+  // checked against wherever it actually lives (old file during a migration).
+  const conflict = currentBody !== null && rec && rec.sha256 !== merge.sha256(currentBody);
+
+  const upsert = merge.upsertBlock(ctx.text(targetRel), op.id, blockBody);
+  const needImport = agentsExists && !hasAgentsImport(ctx.text('CLAUDE.md'));
+  const target = agentsExists ? 'AGENTS.md (+CLAUDE.md @import)' : 'CLAUDE.md';
+
+  let action;
+  if (conflict) action = 'conflict';
+  else if (oldFile) action = 'move';
+  else action = needImport && upsert.action === 'noop' ? 'merge' : upsert.action;
+
+  const detail = [oldFile ? `move from ${oldFile}` : '', needImport ? 'add @AGENTS.md import' : ''].filter(Boolean).join(', ');
+  return {
+    type: 'conventions',
+    target,
+    action,
+    conflict,
+    conflictKey: `conventions:${op.id}`,
+    detail,
+    _id: op.id,
+    _targetRel: targetRel,
+    _blockBody: blockBody,
+    _needImport: needImport,
+    _oldFile: oldFile,
+  };
+}
+function applyConventions(ctx, planned, decision) {
+  const { _id: id, _targetRel: targetRel, _blockBody: blockBody, _oldFile: oldFile } = planned;
+  if (!(planned.conflict && decision !== 'overwrite')) {
+    const upsert = merge.upsertBlock(ctx.text(targetRel), id, blockBody);
+    if (upsert.action !== 'noop') ctx.setText(targetRel, upsert.content);
+    // Migration: strip the orphaned block from its previous file.
+    if (oldFile) ctx.setText(oldFile, merge.removeBlock(ctx.text(oldFile), id));
+    const writtenBody = merge.readBlockBody(ctx.text(targetRel), id);
+    ctx.manifest.claudeMd[id] = { sha256: merge.sha256(writtenBody), file: targetRel };
+  }
+  if (planned._needImport) {
+    const upsert = merge.upsertBlock(ctx.text('CLAUDE.md'), AGENTS_IMPORT_ID, '@AGENTS.md');
+    ctx.setText('CLAUDE.md', upsert.content);
+    const writtenBody = merge.readBlockBody(upsert.content, AGENTS_IMPORT_ID);
+    ctx.manifest.claudeMd[AGENTS_IMPORT_ID] = { sha256: merge.sha256(writtenBody), file: 'CLAUDE.md' };
+  }
 }
 
 function planMergeSettings(ctx, op) {
@@ -296,7 +356,7 @@ function applyMergeMcp(ctx, planned, decision) {
 
 const PLANNERS = {
   vendorFile: planVendorFile,
-  claudeMdBlock: planClaudeMdBlock,
+  conventions: planConventions,
   mergeSettings: planMergeSettings,
   settingsScalar: planSettingsScalar,
   hookWire: planHookWire,
@@ -304,7 +364,7 @@ const PLANNERS = {
 };
 const APPLIERS = {
   vendorFile: applyVendorFile,
-  claudeMdBlock: applyClaudeMdBlock,
+  conventions: applyConventions,
   mergeSettings: applyMergeSettings,
   settingsScalar: applySettingsScalar,
   hookWire: applyHookWire,
@@ -332,11 +392,13 @@ function flush(ctx) {
     fs.mkdirSync(claudeDir, { recursive: true });
     fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify(ctx.settings, null, 2) + '\n');
   }
-  if (ctx.touched.has('claudeMd')) {
-    fs.writeFileSync(path.join(ctx.repoRoot, 'CLAUDE.md'), ctx.claudeMd);
-  }
   if (ctx.touched.has('mcp')) {
     fs.writeFileSync(path.join(ctx.repoRoot, '.mcp.json'), JSON.stringify(ctx.mcp, null, 2) + '\n');
+  }
+  for (const rel of ctx.touchedText) {
+    const abs = path.join(ctx.repoRoot, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, ctx.text(rel));
   }
 }
 
@@ -348,6 +410,7 @@ function applyPlan(ctx, plan, componentIds, opts) {
   }
   ctx.manifest.components = merge.unionArray(ctx.manifest.components, componentIds).result;
   ctx.manifest.schema = manifestLib.SCHEMA_VERSION;
+  ctx.manifest.pluginVersion = readPluginVersion(ctx.pluginRoot);
   flush(ctx);
   manifestLib.write(ctx.repoRoot, ctx.manifest);
 }
@@ -392,17 +455,22 @@ function removeAll(ctx) {
     }
     fs.writeFileSync(path.join(ctx.repoRoot, '.claude', 'settings.json'), JSON.stringify(s, null, 2) + '\n');
   }
-  // CLAUDE.md blocks (only if unchanged).
-  const cmPath = path.join(ctx.repoRoot, 'CLAUDE.md');
-  if (fs.existsSync(cmPath)) {
-    let content = fs.readFileSync(cmPath, 'utf8');
-    for (const [id, rec] of Object.entries(m.claudeMd)) {
-      const body = merge.readBlockBody(content, id);
-      if (body !== null && merge.sha256(body) === rec.sha256) content = merge.removeBlock(content, id);
-      else if (body !== null) kept.push(`CLAUDE.md:${id}`);
+  // Marker blocks in CLAUDE.md / AGENTS.md (only if unchanged), using the file
+  // recorded for each block.
+  for (const [id, rec] of Object.entries(m.claudeMd)) {
+    const fileRel = rec.file || 'CLAUDE.md';
+    const abs = path.join(ctx.repoRoot, fileRel);
+    if (!fs.existsSync(abs)) continue;
+    const content = fs.readFileSync(abs, 'utf8');
+    const body = merge.readBlockBody(content, id);
+    if (body === null) continue;
+    if (merge.sha256(body) === rec.sha256) {
+      const stripped = merge.removeBlock(content, id);
+      if (stripped.trim() === '') fs.rmSync(abs);
+      else fs.writeFileSync(abs, stripped);
+    } else {
+      kept.push(`${fileRel}:${id}`);
     }
-    if (content.trim() === '') fs.rmSync(cmPath);
-    else fs.writeFileSync(cmPath, content);
   }
   // MCP servers.
   const mcpPath = path.join(ctx.repoRoot, '.mcp.json');

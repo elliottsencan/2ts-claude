@@ -88,6 +88,24 @@ describe('non-clobber merge', () => {
     assert.ok(s.permissions.allow.includes('Bash(git status:*)'), 'ours added');
   });
 
+  it('unions permissions.deny defaults', () => {
+    apply(['settings']);
+    const s = readJson('.claude/settings.json');
+    assert.ok(Array.isArray(s.permissions.deny), 'deny present');
+    assert.ok(s.permissions.deny.includes('Read(./.env)'), 'deny default added');
+  });
+
+  it('preserves a user deny entry and does not duplicate an overlapping default', () => {
+    fs.writeFileSync(
+      path.join(repo, '.claude/settings.json'),
+      JSON.stringify({ permissions: { deny: ['Read(./.env)', 'Read(./custom-secret)'] } }, null, 2)
+    );
+    apply(['settings']);
+    const deny = readJson('.claude/settings.json').permissions.deny;
+    assert.ok(deny.includes('Read(./custom-secret)'), 'user deny kept');
+    assert.equal(deny.filter((d) => d === 'Read(./.env)').length, 1, 'overlapping default not duplicated');
+  });
+
   it('flags a scalar collision as a conflict and keeps the user value by default', () => {
     const p = plan(['settings']);
     assert.ok(p.conflicts.some((c) => c.key === 'setting:permissions.defaultMode'));
@@ -105,6 +123,103 @@ describe('non-clobber merge', () => {
     const cm = read('CLAUDE.md');
     assert.match(cm, /user wrote this/);
     assert.match(cm, /BEGIN 2ts-claude:conventions/);
+  });
+});
+
+describe('AGENTS.md interop', () => {
+  it('targets AGENTS.md for conventions and adds @AGENTS.md import to CLAUDE.md', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n\nexisting agent rules\n');
+    apply(['conventions']);
+    const agents = read('AGENTS.md');
+    assert.match(agents, /existing agent rules/, 'user AGENTS.md content kept');
+    assert.match(agents, /BEGIN 2ts-claude:conventions/, 'block written into AGENTS.md');
+    const cm = read('CLAUDE.md');
+    assert.match(cm, /@AGENTS\.md/, 'CLAUDE.md imports AGENTS.md');
+    assert.doesNotMatch(cm, /BEGIN 2ts-claude:conventions/, 'conventions not duplicated in CLAUDE.md');
+  });
+
+  it('is idempotent with AGENTS.md present', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    apply(['conventions']);
+    const p = plan(['conventions']);
+    assert.equal(p.conflicts.length, 0);
+    assert.ok(p.ops.every((o) => o.action === 'noop'), 'all noop on re-run');
+  });
+
+  it('targets CLAUDE.md when no AGENTS.md exists', () => {
+    apply(['conventions']);
+    assert.match(read('CLAUDE.md'), /BEGIN 2ts-claude:conventions/);
+    assert.ok(!fs.existsSync(path.join(repo, 'AGENTS.md')), 'no AGENTS.md created');
+  });
+
+  it('does not duplicate an existing @AGENTS.md import the user wrote', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    fs.writeFileSync(path.join(repo, 'CLAUDE.md'), '@AGENTS.md\n\n# mine\n');
+    apply(['conventions']);
+    const cm = read('CLAUDE.md');
+    assert.equal((cm.match(/@AGENTS\.md/g) || []).length, 1, 'import not duplicated');
+    assert.doesNotMatch(cm, /BEGIN 2ts-claude:agents-import/, 'no managed import block added');
+  });
+
+  it('keeps the import block to exactly one across re-applies', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    apply(['conventions']);
+    apply(['conventions']);
+    const cm = read('CLAUDE.md');
+    assert.equal((cm.match(/@AGENTS\.md/g) || []).length, 1, 'single import after two applies');
+  });
+});
+
+describe('conventions migration (CLAUDE.md -> AGENTS.md)', () => {
+  it('moves the block to AGENTS.md and leaves no orphan in CLAUDE.md', () => {
+    apply(['conventions']); // no AGENTS.md yet -> lands in CLAUDE.md
+    assert.match(read('CLAUDE.md'), /BEGIN 2ts-claude:conventions/);
+
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    const p = plan(['conventions']);
+    assert.ok(p.ops.some((o) => o.type === 'conventions' && o.action === 'move'), 'planned as a move');
+    apply(['conventions']);
+
+    assert.match(read('AGENTS.md'), /BEGIN 2ts-claude:conventions/, 'block now in AGENTS.md');
+    assert.doesNotMatch(read('CLAUDE.md'), /BEGIN 2ts-claude:conventions/, 'orphan removed from CLAUDE.md');
+    assert.match(read('CLAUDE.md'), /@AGENTS\.md/, 'import added');
+    assert.equal(readJson('.claude/.2ts-claude.json').claudeMd.conventions.file, 'AGENTS.md', 'manifest tracks new file');
+  });
+
+  it('flags a hand-edited old block as a conflict instead of abandoning it', () => {
+    apply(['conventions']); // -> CLAUDE.md
+    // User edits inside the managed block, then AGENTS.md appears.
+    const edited = read('CLAUDE.md').replace('## Conventions', '## Conventions (my edits)');
+    fs.writeFileSync(path.join(repo, 'CLAUDE.md'), edited);
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+
+    const p = plan(['conventions']);
+    assert.ok(p.conflicts.some((c) => c.key === 'conventions:conventions'), 'edited old block is a conflict');
+
+    apply(['conventions']); // no force -> skip
+    assert.match(read('CLAUDE.md'), /my edits/, 'user edits preserved on skip');
+    assert.doesNotMatch(read('AGENTS.md'), /BEGIN 2ts-claude:conventions/, 'nothing written to AGENTS.md on skip');
+  });
+});
+
+describe('conventions conflict inside AGENTS.md', () => {
+  beforeEach(() => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    apply(['conventions']);
+    // Hand-edit inside the managed block in AGENTS.md.
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), read('AGENTS.md').replace('## Conventions', '## Conventions (edited)'));
+  });
+
+  it('detects the edit and skips by default', () => {
+    const p = plan(['conventions']);
+    assert.ok(p.conflicts.some((c) => c.key === 'conventions:conventions'));
+    apply(['conventions']);
+    assert.match(read('AGENTS.md'), /edited/, 'user edit kept');
+  });
+
+  it('overwrites with an explicit resolution', () => {
+    apply(['conventions'], { resolutions: { 'conventions:conventions': 'overwrite' } });
+    assert.doesNotMatch(read('AGENTS.md'), /edited/, 'ours restored');
   });
 });
 
@@ -148,5 +263,45 @@ describe('remove', () => {
     const ctx = engine.makeContext(repo, PLUGIN_ROOT);
     engine.removeAll(ctx);
     assert.ok(fs.existsSync(hookPath), 'user-modified file preserved on remove');
+  });
+
+  it('removes the conventions block from AGENTS.md and the import from CLAUDE.md, keeping user prose', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n\nkeep my agent rules\n');
+    apply(['conventions']);
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.match(read('AGENTS.md'), /keep my agent rules/, 'user prose kept');
+    assert.doesNotMatch(read('AGENTS.md'), /BEGIN 2ts-claude:conventions/, 'block removed from AGENTS.md');
+    // CLAUDE.md held only the import, so removing it leaves an empty file that is deleted.
+    const cmPath = path.join(repo, 'CLAUDE.md');
+    assert.ok(!fs.existsSync(cmPath) || !/@AGENTS\.md/.test(read('CLAUDE.md')), 'import removed from CLAUDE.md');
+  });
+
+  it('removes the user deny defaults we added but keeps the user deny entry', () => {
+    fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo, '.claude/settings.json'),
+      JSON.stringify({ permissions: { deny: ['Read(./custom-secret)'] } }, null, 2)
+    );
+    apply(['settings']);
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    const deny = readJson('.claude/settings.json').permissions.deny;
+    assert.ok(deny.includes('Read(./custom-secret)'), 'user deny kept');
+    assert.ok(!deny.includes('Read(./.env)'), 'our deny default removed');
+  });
+});
+
+describe('manifest', () => {
+  it('stamps the plugin version on apply', () => {
+    apply(['conventions']);
+    const pluginVersion = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'plugin.json'), 'utf8')).version;
+    assert.equal(readJson('.claude/.2ts-claude.json').pluginVersion, pluginVersion);
+  });
+
+  it('refuses to operate on a corrupt manifest instead of silently resetting', () => {
+    apply(['conventions']);
+    fs.writeFileSync(path.join(repo, '.claude/.2ts-claude.json'), '{ this is not json <<<<<<< HEAD');
+    assert.throws(() => engine.makeContext(repo, PLUGIN_ROOT), /unparseable|MANIFEST_CORRUPT|manifest/i);
   });
 });

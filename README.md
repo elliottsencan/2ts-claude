@@ -48,7 +48,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 
 ### How merges stay non-destructive
 
-- **CLAUDE.md** — content goes in a marker-delimited block (`<!-- BEGIN 2ts-claude:… -->`). Your prose outside it is never touched.
+- **CLAUDE.md / AGENTS.md** — content goes in a marker-delimited block (`<!-- BEGIN 2ts-claude:… -->`). Your prose outside it is never touched. If the repo already uses `AGENTS.md`, the conventions land there (the cross-tool source of truth) and CLAUDE.md gets an `@AGENTS.md` import instead of a duplicate.
 - **`.claude/settings.json`** — `permissions.allow`/`deny` are set-unioned; scalar defaults are set only if absent (a different existing value becomes a conflict you decide); hook entries are added only if not already present.
 - **Vendored files** (hooks/agents/skills/commands) — copied into `.claude/` and hashed in a manifest (`.claude/.2ts-claude.json`). If you later edit one, a re-run flags it as a conflict instead of overwriting.
 
@@ -57,12 +57,13 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | Component | Default | What it adds |
 |---|---|---|
 | `safety-hooks` | ✅ | `block-dangerous-commands`, `protect-secrets` (PreToolUse) |
-| `conventions` | ✅ | Coding conventions block in `CLAUDE.md` |
-| `settings` | ✅ | Permission allow-list defaults |
+| `conventions` | ✅ | Coding conventions block in `AGENTS.md` (if present) or `CLAUDE.md`, incl. an untrusted-input rule |
+| `settings` | ✅ | Permission allow-list + a narrow secret-file deny-list |
 | `workflow-hooks` | | `format-on-edit` (Prettier), `auto-stage` (git add) |
 | `notify-hook` | | Slack message on permission prompts (`CCH_SLA_WEBHOOK`) |
 | `statusline` | | Status line: model, branch, context-usage bar |
 | `mcp` | | `context7` and `playwright` MCP servers |
+| `ci-secret-scan` | | gitleaks GitHub Action that scans for committed secrets (CI, no local friction) |
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
@@ -79,6 +80,13 @@ Installed by `scripts/install-git-helpers.sh` (also run by `install.sh` for this
 - `git commit` with no message generates one from the staged diff with `claude --model haiku`, via a `prepare-commit-msg` hook. Override the model with `CLAUDE_COMMIT_MODEL`.
 
 The aliases are global. The commit-message hook is per-repo — run `scripts/install-git-helpers.sh` inside each repo where you want it.
+
+### Maintaining the plugin (operator-only)
+
+These run only for whoever has the plugin installed — never for teammates, who just get the durable committed config:
+
+- **Drift reminder** — a `SessionStart` hook that nudges you when something is stale, silent otherwise. Two checks: (1) re-run `/setup` when a repo's stamped config lags your installed plugin; (2) run `claude plugin update` when your installed plugin lags the latest published version. The published check is cached 24h, times out at 1.5s, fails silently, and can be disabled with `CCH_NO_UPDATE_CHECK=1`.
+- **`/research-refresh`** — researches current Claude Code best practices and opens a PR proposing updates to the plugin's components. Kept separate from `/setup` so setup stays deterministic; schedule it with `/schedule` if you want it on a cadence.
 
 ## Tests
 
