@@ -72,30 +72,47 @@ function cachePath() {
 function fetchLatest(url = PUBLISHED_URL, timeoutMs = FETCH_TIMEOUT_MS) {
   return new Promise((resolve) => {
     let req;
+    let done = false;
+    // Hard wall-clock deadline: Node's socket `timeout` only covers inactivity
+    // and is re-armed across connect/TLS/body phases, so it can overshoot. This
+    // guarantees the total time is bounded regardless of which phase stalls.
+    const hardTimer = setTimeout(() => {
+      try {
+        if (req) req.destroy();
+      } catch {}
+      finish(null);
+    }, timeoutMs);
+    function finish(v) {
+      if (done) return;
+      done = true;
+      clearTimeout(hardTimer);
+      resolve(v);
+    }
     try {
       req = https.get(url, { timeout: timeoutMs, headers: { 'User-Agent': '2ts-claude' } }, (res) => {
         if (res.statusCode !== 200) {
           res.resume();
-          return resolve(null);
+          return finish(null);
         }
         let body = '';
         res.on('data', (c) => (body += c));
         res.on('end', () => {
           try {
-            resolve(JSON.parse(body).version || null);
+            finish(JSON.parse(body).version || null);
           } catch {
-            resolve(null);
+            finish(null);
           }
         });
+        res.on('error', () => finish(null));
       });
     } catch {
-      return resolve(null);
+      return finish(null);
     }
     req.on('timeout', () => {
       req.destroy();
-      resolve(null);
+      finish(null);
     });
-    req.on('error', () => resolve(null));
+    req.on('error', () => finish(null));
   });
 }
 
@@ -152,7 +169,8 @@ async function main() {
 }
 
 if (require.main === module) {
-  main();
+  // Never break a session: any unexpected failure degrades to silence.
+  main().catch(() => console.log('{}'));
 } else {
   module.exports = { compareVersions, checkStale, getLatestPublished, buildPublishedReminder, fetchLatest };
 }

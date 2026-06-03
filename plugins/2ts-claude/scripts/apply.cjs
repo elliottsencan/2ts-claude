@@ -60,7 +60,11 @@ function readFileOr(p, fallback) {
 }
 function readJsonOr(p, fallback) {
   if (!fs.existsSync(p)) return fallback;
-  return JSON.parse(fs.readFileSync(p, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (err) {
+    throw new Error(`Could not parse JSON at ${p}: ${err.message}`);
+  }
 }
 function deepEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -171,40 +175,53 @@ function planConventions(ctx, op) {
   const blockBody = fs.readFileSync(srcAbs(ctx, op.src), 'utf8').replace(/\n+$/, '');
   const agentsExists = fs.existsSync(path.join(ctx.repoRoot, 'AGENTS.md'));
   const targetRel = agentsExists ? 'AGENTS.md' : 'CLAUDE.md';
-  const content = ctx.text(targetRel);
-  const currentBody = merge.readBlockBody(content, op.id);
-  const upsert = merge.upsertBlock(content, op.id, blockBody);
-  let conflict = false;
-  if (currentBody !== null) {
-    const rec = ctx.manifest.claudeMd[op.id];
-    if (rec && rec.sha256 !== merge.sha256(currentBody)) conflict = true; // user edited inside our block
-  }
+
+  // Where does our managed block currently live? If a prior run recorded a
+  // different file (e.g. CLAUDE.md before AGENTS.md appeared), the block must
+  // migrate to the new target rather than be duplicated/orphaned.
+  const rec = ctx.manifest.claudeMd[op.id];
+  const recFile = rec && rec.file;
+  const oldFile = recFile && recFile !== targetRel && merge.readBlockBody(ctx.text(recFile), op.id) !== null ? recFile : null;
+  const existingFile = oldFile || targetRel;
+  const currentBody = merge.readBlockBody(ctx.text(existingFile), op.id);
+
+  // Conflict iff the block that currently exists was edited since we wrote it —
+  // checked against wherever it actually lives (old file during a migration).
+  const conflict = currentBody !== null && rec && rec.sha256 !== merge.sha256(currentBody);
+
+  const upsert = merge.upsertBlock(ctx.text(targetRel), op.id, blockBody);
   const needImport = agentsExists && !hasAgentsImport(ctx.text('CLAUDE.md'));
   const target = agentsExists ? 'AGENTS.md (+CLAUDE.md @import)' : 'CLAUDE.md';
+
+  let action;
+  if (conflict) action = 'conflict';
+  else if (oldFile) action = 'move';
+  else action = needImport && upsert.action === 'noop' ? 'merge' : upsert.action;
+
+  const detail = [oldFile ? `move from ${oldFile}` : '', needImport ? 'add @AGENTS.md import' : ''].filter(Boolean).join(', ');
   return {
     type: 'conventions',
     target,
-    action: conflict ? 'conflict' : needImport && upsert.action === 'noop' ? 'merge' : upsert.action,
+    action,
     conflict,
     conflictKey: `conventions:${op.id}`,
-    detail: needImport ? 'add @AGENTS.md import' : '',
+    detail,
     _id: op.id,
     _targetRel: targetRel,
     _blockBody: blockBody,
     _needImport: needImport,
+    _oldFile: oldFile,
   };
 }
 function applyConventions(ctx, planned, decision) {
-  const { _id: id, _targetRel: targetRel, _blockBody: blockBody } = planned;
+  const { _id: id, _targetRel: targetRel, _blockBody: blockBody, _oldFile: oldFile } = planned;
   if (!(planned.conflict && decision !== 'overwrite')) {
     const upsert = merge.upsertBlock(ctx.text(targetRel), id, blockBody);
-    if (upsert.action !== 'noop') {
-      ctx.setText(targetRel, upsert.content);
-      const writtenBody = merge.readBlockBody(upsert.content, id);
-      ctx.manifest.claudeMd[id] = { sha256: merge.sha256(writtenBody), file: targetRel };
-    } else if (!ctx.manifest.claudeMd[id]) {
-      ctx.manifest.claudeMd[id] = { sha256: merge.sha256(blockBody), file: targetRel };
-    }
+    if (upsert.action !== 'noop') ctx.setText(targetRel, upsert.content);
+    // Migration: strip the orphaned block from its previous file.
+    if (oldFile) ctx.setText(oldFile, merge.removeBlock(ctx.text(oldFile), id));
+    const writtenBody = merge.readBlockBody(ctx.text(targetRel), id);
+    ctx.manifest.claudeMd[id] = { sha256: merge.sha256(writtenBody), file: targetRel };
   }
   if (planned._needImport) {
     const upsert = merge.upsertBlock(ctx.text('CLAUDE.md'), AGENTS_IMPORT_ID, '@AGENTS.md');

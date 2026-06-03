@@ -7,7 +7,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const { execFileSync } = require('node:child_process');
 const { compareVersions, checkStale, getLatestPublished, buildPublishedReminder } = require('../../session-start/version-reminder.cjs');
+
+const HOOK = path.join(__dirname, '../../session-start/version-reminder.cjs');
 
 describe('compareVersions', () => {
   it('orders versions correctly', () => {
@@ -120,5 +123,40 @@ describe('getLatestPublished (cache + timeout, no real network)', () => {
 
   it('returns null when there is no cache and the fetch fails', async () => {
     assert.equal(await getLatestPublished({ now: 1, fetcher: async () => null }), null);
+  });
+});
+
+describe('main() output shape (subprocess, network disabled)', () => {
+  let project, plugin;
+  beforeEach(() => {
+    project = fs.mkdtempSync(path.join(os.tmpdir(), '2ts-main-proj-'));
+    plugin = fs.mkdtempSync(path.join(os.tmpdir(), '2ts-main-plugin-'));
+    fs.writeFileSync(path.join(plugin, 'plugin.json'), JSON.stringify({ version: '0.5.0' }));
+  });
+  afterEach(() => {
+    fs.rmSync(project, { recursive: true, force: true });
+    fs.rmSync(plugin, { recursive: true, force: true });
+  });
+  function run() {
+    const out = execFileSync('node', [HOOK], {
+      input: '{}',
+      encoding: 'utf8',
+      env: { ...process.env, CCH_NO_UPDATE_CHECK: '1', CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_ROOT: plugin },
+    });
+    return JSON.parse(out.trim());
+  }
+
+  it('emits SessionStart additionalContext when the repo is stale', () => {
+    fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.claude', '.2ts-claude.json'), JSON.stringify({ pluginVersion: '0.2.0' }));
+    const out = run();
+    assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
+    assert.match(out.hookSpecificOutput.additionalContext, /stale/);
+  });
+
+  it('emits {} when nothing is stale', () => {
+    fs.mkdirSync(path.join(project, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(project, '.claude', '.2ts-claude.json'), JSON.stringify({ pluginVersion: '0.5.0' }));
+    assert.deepEqual(run(), {});
   });
 });

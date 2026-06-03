@@ -7,7 +7,7 @@
 // Operation types (handled in apply.cjs):
 //   vendorFile      { src, dest, executable? }   copy a file into the repo, hashed in the manifest
 //   conventions     { id, src }                   upsert a marker block (AGENTS.md if present, else CLAUDE.md) + @AGENTS.md import
-//   mergeSettings   { src }                       deep-merge a settings JSON (allow union, scalars set-if-absent)
+//   mergeSettings   { src }                       deep-merge a settings JSON (allow/deny union, scalars set-if-absent)
 //   settingsScalar  { keyPath, value }            set a dotted settings key only if absent
 //   hookWire        { event, matcher, command }   append a hook entry into .claude/settings.json
 //   mergeMcp        { src }                       union mcpServers from a JSON file into <repo>/.mcp.json
@@ -42,7 +42,7 @@ const COMPONENTS = {
 
   settings: {
     title: 'Permission defaults',
-    description: 'Merge sensible permission allow-list defaults into .claude/settings.json.',
+    description: 'Merge a permission allow-list and a narrow secret-file deny-list into .claude/settings.json.',
     default: true,
     ops: [{ type: 'mergeSettings', src: 'assets/settings-defaults.json' }],
   },

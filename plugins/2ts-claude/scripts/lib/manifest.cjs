@@ -19,19 +19,30 @@ function empty() {
     components: [],
     files: [], // { path, sha256 } — repo-relative
     settings: { allow: [], deny: [], hooks: [], scalars: {} }, // hooks: { event, command }
-    claudeMd: {}, // { [blockId]: { sha256 } }
+    claudeMd: {}, // { [blockId]: { sha256, file } } — file = where the block landed (CLAUDE.md or AGENTS.md)
     mcp: [], // server names we added
   };
 }
 
 function read(repoRoot) {
   const p = manifestPath(repoRoot);
-  if (!fs.existsSync(p)) return empty();
+  if (!fs.existsSync(p)) return empty(); // absent: fine, start fresh
+  let raw;
   try {
-    const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+    raw = fs.readFileSync(p, 'utf8');
+    const parsed = JSON.parse(raw);
     return { ...empty(), ...parsed, settings: { ...empty().settings, ...(parsed.settings || {}) } };
-  } catch {
-    return empty();
+  } catch (err) {
+    // A present-but-unparseable manifest (e.g. committed git conflict markers)
+    // is NOT the same as no manifest. Returning empty() would silently disable
+    // conflict detection and could overwrite the user's edits, then overwrite
+    // the file itself. Refuse instead.
+    const e = new Error(
+      `2ts-claude manifest at ${p} is present but unparseable (${err.message}). ` +
+        `Refusing to proceed — this would disable conflict detection. Fix or delete the file, then re-run.`,
+    );
+    e.code = 'MANIFEST_CORRUPT';
+    throw e;
   }
 }
 
