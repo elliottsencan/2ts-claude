@@ -477,6 +477,45 @@ describe('local scope', () => {
   });
 });
 
+describe('wiki components (local scope)', () => {
+  it('installs the /wiki command + surface hook entirely in the local, git-ignored tier', () => {
+    apply(['command-wiki', 'wiki-surface']);
+
+    // Files land under the local tier.
+    assert.ok(fs.existsSync(path.join(repo, '.claude/commands/wiki.md')), 'command vendored');
+    assert.ok(fs.existsSync(path.join(repo, '.claude/local/hooks/wiki-query.cjs')), 'scorer vendored');
+    assert.ok(fs.existsSync(path.join(repo, '.claude/local/hooks/wiki-surface.cjs')), 'hook vendored');
+
+    // Hook wired in settings.local.json, NOT the shared, committed settings.json.
+    const sl = readJson('.claude/settings.local.json');
+    const cmds = sl.hooks.UserPromptSubmit.flatMap((e) => e.hooks.map((h) => h.command));
+    assert.equal(cmds.filter((c) => c.includes('wiki-surface.cjs')).length, 1, 'wired once');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/settings.json')), 'no committed settings.json');
+
+    // Tracked in the local (git-ignored) manifest, and the managed gitignore covers everything.
+    const lm = readJson('.claude/.2ts-claude.local.json');
+    assert.ok(lm.components.includes('command-wiki') && lm.components.includes('wiki-surface'));
+    const ignore = read('.claude/.gitignore');
+    for (const entry of ['settings.local.json', '.2ts-claude.local.json', 'commands/wiki.md', 'local/hooks/wiki-surface.cjs']) {
+      assert.match(ignore, new RegExp(entry.replace(/[.]/g, '\\.')), `gitignore covers ${entry}`);
+    }
+
+    // Idempotent, and the scorer vendored by both components isn't duplicated.
+    const second = plan(['command-wiki', 'wiki-surface']);
+    assert.equal(second.conflicts.length, 0);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run all noop');
+    assert.equal(lm.files.filter((f) => f.path.endsWith('wiki-query.cjs')).length, 1, 'scorer recorded once');
+
+    // Remove leaves nothing personal behind.
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/local')), 'local dir gone');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/commands/wiki.md')), 'command gone');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/settings.local.json')), 'local settings gone');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.gitignore')), 'managed gitignore gone');
+  });
+});
+
 describe('manifest', () => {
   it('stamps the plugin version on apply', () => {
     apply(['conventions']);
