@@ -298,6 +298,7 @@ describe('durable repo-file components', () => {
     { id: 'gitattributes', dest: '.gitattributes' },
     { id: 'pr-template', dest: '.github/pull_request_template.md' },
     { id: 'dependabot', dest: '.github/dependabot.yml' },
+    { id: 'command-pr', dest: '.claude/commands/pr.md' },
   ];
 
   for (const { id, dest } of cases) {

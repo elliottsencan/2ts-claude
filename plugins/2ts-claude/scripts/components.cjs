@@ -144,6 +144,13 @@ const COMPONENTS = {
     default: false,
     ops: [{ type: 'vendorFile', src: 'commands/handoff.md', dest: '.claude/commands/handoff.md' }],
   },
+
+  'command-pr': {
+    title: 'pr command',
+    description: 'Add the /pr command that drafts a copy-ready PR title and body from the branch state.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'commands/pr.md', dest: '.claude/commands/pr.md' }],
+  },
 };
 
 function defaultComponents() {

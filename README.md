@@ -71,6 +71,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
+| `command-pr` | | `/pr` command (drafts a copy-ready PR title + body) |
 
 ## Personal global config
 
