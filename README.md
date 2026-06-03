@@ -59,14 +59,19 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `safety-hooks` | ✅ | `block-dangerous-commands`, `protect-secrets` (PreToolUse) |
 | `conventions` | ✅ | Coding conventions block in `AGENTS.md` (if present) or `CLAUDE.md`, incl. an untrusted-input rule |
 | `settings` | ✅ | Permission allow-list + a narrow secret-file deny-list |
-| `workflow-hooks` | | `format-on-edit` (Prettier), `auto-stage` (git add) |
+| `workflow-hooks` | | `format-on-edit` (Prettier), `lint-on-edit` (ESLint `--fix`, where configured), `auto-stage` (git add) |
 | `notify-hook` | | Slack message on permission prompts (`CCH_SLA_WEBHOOK`) |
 | `statusline` | | Status line: model, branch, context-usage bar |
 | `mcp` | | `context7` and `playwright` MCP servers |
 | `ci-secret-scan` | | gitleaks GitHub Action that scans for committed secrets (CI, no local friction) |
+| `editorconfig` | | Portable `.editorconfig` (utf-8, lf, final newline, 2-space) |
+| `gitattributes` | | `.gitattributes`: normalize line endings, keep lockfiles out of diffs/language stats |
+| `pr-template` | | `.github/pull_request_template.md` (summary, changes, testing, risk/rollback) |
+| `dependabot` | | `.github/dependabot.yml`: grouped weekly github-actions + npm updates |
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
+| `command-pr` | | `/pr` command (drafts a copy-ready PR title + body) |
 
 ## Personal global config
 

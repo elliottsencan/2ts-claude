@@ -292,6 +292,67 @@ describe('remove', () => {
   });
 });
 
+describe('durable repo-file components', () => {
+  const cases = [
+    { id: 'editorconfig', dest: '.editorconfig' },
+    { id: 'gitattributes', dest: '.gitattributes' },
+    { id: 'pr-template', dest: '.github/pull_request_template.md' },
+    { id: 'dependabot', dest: '.github/dependabot.yml' },
+    { id: 'command-pr', dest: '.claude/commands/pr.md' },
+  ];
+
+  for (const { id, dest } of cases) {
+    it(`${id}: lands the file, records its hash, re-runs as noop, and removes cleanly`, () => {
+      apply([id]);
+
+      // File lands.
+      const abs = path.join(repo, dest);
+      assert.ok(fs.existsSync(abs), `${dest} created`);
+
+      // Manifest records the file with the correct hash.
+      const m = readJson('.claude/.2ts-claude.json');
+      const entry = m.files.find((f) => f.path === dest);
+      assert.ok(entry, `${dest} recorded in manifest`);
+      assert.equal(entry.sha256, merge.sha256(read(dest)), 'manifest hash matches file');
+      assert.ok(m.components.includes(id), 'component recorded');
+
+      // Re-running is fully idempotent.
+      const second = plan([id]);
+      assert.equal(second.conflicts.length, 0);
+      assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+
+      // Remove reverses it.
+      const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+      engine.removeAll(ctx);
+      assert.ok(!fs.existsSync(abs), `${dest} removed`);
+      assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.json')), 'manifest dropped');
+    });
+  }
+
+  it('keeps a user-modified durable file on remove', () => {
+    apply(['editorconfig']);
+    const abs = path.join(repo, '.editorconfig');
+    fs.writeFileSync(abs, 'root = true\n# my edits\n');
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.ok(fs.existsSync(abs), 'user-modified file preserved on remove');
+  });
+});
+
+describe('workflow-hooks lint-on-edit', () => {
+  it('vendors lint-on-edit and wires it once on PostToolUse Edit|Write', () => {
+    apply(['workflow-hooks']);
+    assert.ok(fs.existsSync(path.join(repo, '.claude/hooks/post-tool-use/lint-on-edit.cjs')), 'hook vendored');
+    const s = readJson('.claude/settings.json');
+    const cmds = s.hooks.PostToolUse.flatMap((e) => e.hooks.map((h) => h.command));
+    const lintCmds = cmds.filter((c) => c.includes('lint-on-edit.cjs'));
+    assert.equal(lintCmds.length, 1, 'lint hook wired exactly once');
+    // Idempotent re-run.
+    const second = plan(['workflow-hooks']);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+  });
+});
+
 describe('manifest', () => {
   it('stamps the plugin version on apply', () => {
     apply(['conventions']);

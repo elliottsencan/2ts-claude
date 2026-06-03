@@ -49,11 +49,13 @@ const COMPONENTS = {
 
   'workflow-hooks': {
     title: 'Workflow hooks',
-    description: 'Format files with Prettier on edit and auto-stage assistant changes.',
+    description: 'Format files with Prettier on edit, lint with ESLint --fix (where configured), and auto-stage assistant changes.',
     default: false,
     ops: [
       vendorHook('hooks/post-tool-use/format-on-edit.cjs', '.claude/hooks/post-tool-use/format-on-edit.cjs'),
       { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/format-on-edit.cjs') },
+      vendorHook('hooks/post-tool-use/lint-on-edit.cjs', '.claude/hooks/post-tool-use/lint-on-edit.cjs'),
+      { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/lint-on-edit.cjs') },
       vendorHook('hooks/post-tool-use/auto-stage.cjs', '.claude/hooks/post-tool-use/auto-stage.cjs'),
       { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/auto-stage.cjs') },
     ],
@@ -93,6 +95,34 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/github/secret-scan.yml', dest: '.github/workflows/secret-scan.yml' }],
   },
 
+  editorconfig: {
+    title: 'EditorConfig',
+    description: 'Add a portable .editorconfig (utf-8, lf, final newline, 2-space) every editor and agent honors.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/editorconfig', dest: '.editorconfig' }],
+  },
+
+  gitattributes: {
+    title: 'Git attributes',
+    description: 'Add a .gitattributes that normalizes line endings and keeps lockfiles out of diffs/language stats.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/gitattributes', dest: '.gitattributes' }],
+  },
+
+  'pr-template': {
+    title: 'PR template',
+    description: 'Add a short .github/pull_request_template.md (summary, changes, testing, risk/rollback, linked issues).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/github/pull_request_template.md', dest: '.github/pull_request_template.md' }],
+  },
+
+  dependabot: {
+    title: 'Dependabot',
+    description: 'Add a grouped, weekly Dependabot config for github-actions and npm (low PR noise).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/github/dependabot.yml', dest: '.github/dependabot.yml' }],
+  },
+
   agents: {
     title: 'Review agents',
     description: 'Add the code-reviewer and bug-hunter subagents.',
@@ -115,6 +145,13 @@ const COMPONENTS = {
     description: 'Add the /handoff command for passing work to another session.',
     default: false,
     ops: [{ type: 'vendorFile', src: 'commands/handoff.md', dest: '.claude/commands/handoff.md' }],
+  },
+
+  'command-pr': {
+    title: 'pr command',
+    description: 'Add the /pr command that drafts a copy-ready PR title and body from the branch state.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'commands/pr.md', dest: '.claude/commands/pr.md' }],
   },
 };
 

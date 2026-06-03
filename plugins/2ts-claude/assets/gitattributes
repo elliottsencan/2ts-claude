@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.sh   text eol=lf
+*.cjs  text eol=lf
+*.{yml,yaml,json,md} text eol=lf
+
+# Keep generated files out of diffs and language stats
+package-lock.json   linguist-generated=true -diff
+pnpm-lock.yaml      linguist-generated=true -diff
+yarn.lock           linguist-generated=true -diff

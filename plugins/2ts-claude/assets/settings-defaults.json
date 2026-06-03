@@ -16,6 +16,10 @@
       "Bash(npm test:*)",
       "Bash(npm run:*)",
       "Bash(node --test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(eslint:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)"
     ],
