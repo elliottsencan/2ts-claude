@@ -155,6 +155,10 @@ const COMPONENTS = {
   },
 };
 
+function scopeOf(id) {
+  return COMPONENTS[id].scope || 'shared';
+}
+
 function defaultComponents() {
   return Object.keys(COMPONENTS).filter((id) => COMPONENTS[id].default);
 }
@@ -172,4 +176,4 @@ function resolve(selection) {
   return ids;
 }
 
-module.exports = { COMPONENTS, defaultComponents, allComponents, resolve };
+module.exports = { COMPONENTS, scopeOf, defaultComponents, allComponents, resolve };

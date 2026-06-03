@@ -93,13 +93,24 @@ function readPluginVersion(pluginRoot) {
 // ---------- engine context: lazily-loaded working copies of mutated files ----------
 function makeContext(repoRoot, pluginRoot) {
   const textCache = new Map(); // relPath -> content
+  const manifests = {
+    shared: manifestLib.read(repoRoot, 'shared'),
+    local: manifestLib.read(repoRoot, 'local'),
+  };
   return {
     repoRoot,
     pluginRoot,
-    manifest: manifestLib.read(repoRoot),
-    touched: new Set(), // 'settings' | 'mcp'
+    // Both manifests are loaded; `manifest` stays the shared one for back-compat.
+    get manifest() {
+      return manifests.shared;
+    },
+    manifestFor(scope) {
+      return scope === 'local' ? manifests.local : manifests.shared;
+    },
+    touched: new Set(), // 'settings' | 'settingsLocal' | 'mcp'
     touchedText: new Set(), // relative paths of text files to flush
     _settings: undefined,
+    _settingsLocal: undefined,
     _mcp: undefined,
     // Generic lazily-loaded text file (CLAUDE.md, AGENTS.md, ...).
     text(rel) {
@@ -110,11 +121,21 @@ function makeContext(repoRoot, pluginRoot) {
       textCache.set(rel, content);
       this.touchedText.add(rel);
     },
-    get settings() {
+    settingsFor(scope) {
+      if (scope === 'local') {
+        if (this._settingsLocal === undefined) {
+          this._settingsLocal = readJsonOr(path.join(repoRoot, '.claude', 'settings.local.json'), {});
+        }
+        return this._settingsLocal;
+      }
       if (this._settings === undefined) {
         this._settings = readJsonOr(path.join(repoRoot, '.claude', 'settings.json'), {});
       }
       return this._settings;
+    },
+    // Shared settings accessor preserved for unrelated code/tests.
+    get settings() {
+      return this.settingsFor('shared');
     },
     get mcp() {
       if (this._mcp === undefined) {
@@ -129,11 +150,20 @@ function srcAbs(ctx, rel) {
   return path.join(ctx.pluginRoot, rel);
 }
 
+// Per-scope routing for the settings file: the `touched` flag the flush keys on
+// and the repo-relative path it writes to.
+function settingsTouchKey(scope) {
+  return scope === 'local' ? 'settingsLocal' : 'settings';
+}
+function settingsRel(scope) {
+  return path.join('.claude', scope === 'local' ? 'settings.local.json' : 'settings.json');
+}
+
 // ---------- op handlers ----------
 // Each returns a planned-op descriptor: { type, target, action, conflict, conflictKey, detail }.
 // In apply mode, when `write` is true it mutates ctx (honoring `decision` for conflicts).
 
-function planVendorFile(ctx, op) {
+function planVendorFile(ctx, op, scope) {
   const destAbs = path.join(ctx.repoRoot, op.dest);
   const newContent = fs.readFileSync(srcAbs(ctx, op.src), 'utf8');
   const newHash = merge.sha256(newContent);
@@ -141,7 +171,7 @@ function planVendorFile(ctx, op) {
   let conflict = false;
   if (fs.existsSync(destAbs)) {
     const existingHash = merge.sha256(fs.readFileSync(destAbs, 'utf8'));
-    const rec = manifestLib.fileEntry(ctx.manifest, op.dest);
+    const rec = manifestLib.fileEntry(ctx.manifestFor(scope), op.dest);
     if (existingHash === newHash) action = 'noop';
     else if (rec && rec.sha256 === existingHash) action = 'update';
     else {
@@ -152,14 +182,23 @@ function planVendorFile(ctx, op) {
   return { type: 'vendorFile', target: op.dest, action, conflict, conflictKey: `file:${op.dest}`, _newContent: newContent, _newHash: newHash, _destAbs: destAbs, _executable: !!op.executable };
 }
 function applyVendorFile(ctx, planned, decision) {
-  if (planned.action === 'noop') return;
+  const m = ctx.manifestFor(planned.scope);
+  if (planned.action === 'noop') {
+    // Local scope only: record the entry so the managed .claude/.gitignore block
+    // stays accurate even when the file was already on disk identical. Shared
+    // scope keeps its "own only what we wrote" invariant.
+    if (planned.scope === 'local' && !manifestLib.fileEntry(m, planned.target)) {
+      m.files.push({ path: planned.target, sha256: planned._newHash });
+    }
+    return;
+  }
   if (planned.conflict && decision !== 'overwrite') return; // skip
   fs.mkdirSync(path.dirname(planned._destAbs), { recursive: true });
   fs.writeFileSync(planned._destAbs, planned._newContent);
   if (planned._executable) fs.chmodSync(planned._destAbs, 0o755);
-  const existing = manifestLib.fileEntry(ctx.manifest, planned.target);
+  const existing = manifestLib.fileEntry(m, planned.target);
   if (existing) existing.sha256 = planned._newHash;
-  else ctx.manifest.files.push({ path: planned.target, sha256: planned._newHash });
+  else m.files.push({ path: planned.target, sha256: planned._newHash });
 }
 
 const AGENTS_IMPORT_ID = 'agents-import';
@@ -231,9 +270,9 @@ function applyConventions(ctx, planned, decision) {
   }
 }
 
-function planMergeSettings(ctx, op) {
+function planMergeSettings(ctx, op, scope) {
   const defaults = readJsonOr(srcAbs(ctx, op.src), {});
-  const s = ctx.settings;
+  const s = ctx.settingsFor(scope);
   const details = [];
   let conflict = false;
   let conflictKey = null;
@@ -258,8 +297,10 @@ function planMergeSettings(ctx, op) {
   return { type: 'mergeSettings', target: '.claude/settings.json', action, conflict, conflictKey, detail: details.join(', '), _defaults: defaults };
 }
 function applyMergeSettings(ctx, planned, decision) {
+  const scope = planned.scope;
   const defaults = planned._defaults;
-  const s = ctx.settings;
+  const s = ctx.settingsFor(scope);
+  const m = ctx.manifestFor(scope);
   if (!s.permissions) s.permissions = {};
   if (s.$schema == null && defaults.$schema) s.$schema = defaults.$schema;
   const dPerms = defaults.permissions || {};
@@ -267,24 +308,24 @@ function applyMergeSettings(ctx, planned, decision) {
     if (Array.isArray(dPerms[key])) {
       const { result, added } = merge.unionArray(s.permissions[key] || [], dPerms[key]);
       s.permissions[key] = result;
-      if (added.length) ctx.manifest.settings[key] = merge.unionArray(ctx.manifest.settings[key], added).result;
+      if (added.length) m.settings[key] = merge.unionArray(m.settings[key], added).result;
     }
   }
   if (dPerms.defaultMode != null) {
     const cur = s.permissions.defaultMode;
     if (cur == null) {
       s.permissions.defaultMode = dPerms.defaultMode;
-      ctx.manifest.settings.scalars['permissions.defaultMode'] = dPerms.defaultMode;
+      m.settings.scalars['permissions.defaultMode'] = dPerms.defaultMode;
     } else if (cur !== dPerms.defaultMode && decision === 'overwrite') {
       s.permissions.defaultMode = dPerms.defaultMode;
-      ctx.manifest.settings.scalars['permissions.defaultMode'] = dPerms.defaultMode;
+      m.settings.scalars['permissions.defaultMode'] = dPerms.defaultMode;
     }
   }
-  ctx.touched.add('settings');
+  ctx.touched.add(settingsTouchKey(scope));
 }
 
-function planSettingsScalar(ctx, op) {
-  const cur = getPath(ctx.settings, op.keyPath);
+function planSettingsScalar(ctx, op, scope) {
+  const cur = getPath(ctx.settingsFor(scope), op.keyPath);
   let action;
   let conflict = false;
   if (cur == null) action = 'set';
@@ -297,28 +338,31 @@ function planSettingsScalar(ctx, op) {
 }
 function applySettingsScalar(ctx, planned, decision) {
   const op = planned._op;
+  const scope = planned.scope;
   if (planned.action === 'noop') return;
   if (planned.conflict && decision !== 'overwrite') return;
-  setPath(ctx.settings, op.keyPath, op.value);
-  ctx.manifest.settings.scalars[op.keyPath] = op.value;
-  ctx.touched.add('settings');
+  setPath(ctx.settingsFor(scope), op.keyPath, op.value);
+  ctx.manifestFor(scope).settings.scalars[op.keyPath] = op.value;
+  ctx.touched.add(settingsTouchKey(scope));
 }
 
-function planHookWire(ctx, op) {
-  const s = ctx.settings;
+function planHookWire(ctx, op, scope) {
+  const s = ctx.settingsFor(scope);
   const entries = (s.hooks && s.hooks[op.event]) || [];
   const present = entries.some((e) => (e.hooks || []).some((h) => h.command === op.command));
-  return { type: 'hookWire', target: `.claude/settings.json (${op.event})`, action: present ? 'noop' : 'add', conflict: false, detail: op.matcher, _op: op };
+  const file = scope === 'local' ? '.claude/settings.local.json' : '.claude/settings.json';
+  return { type: 'hookWire', target: `${file} (${op.event})`, action: present ? 'noop' : 'add', conflict: false, detail: op.matcher, _op: op };
 }
 function applyHookWire(ctx, planned) {
   if (planned.action === 'noop') return;
   const op = planned._op;
-  const s = ctx.settings;
+  const scope = planned.scope;
+  const s = ctx.settingsFor(scope);
   if (!s.hooks) s.hooks = {};
   if (!Array.isArray(s.hooks[op.event])) s.hooks[op.event] = [];
   s.hooks[op.event].push({ matcher: op.matcher, hooks: [{ type: 'command', command: op.command }] });
-  ctx.manifest.settings.hooks.push({ event: op.event, command: op.command });
-  ctx.touched.add('settings');
+  ctx.manifestFor(scope).settings.hooks.push({ event: op.event, command: op.command });
+  ctx.touched.add(settingsTouchKey(scope));
 }
 
 function planMergeMcp(ctx, op) {
@@ -376,9 +420,19 @@ function buildPlan(ctx, componentIds) {
   const ops = [];
   for (const id of componentIds) {
     const comp = components.COMPONENTS[id];
+    // conventions/mergeMcp target committed files and are shared-only by nature.
+    const compScope = components.scopeOf(id);
     for (const op of comp.ops) {
-      const planned = PLANNERS[op.type](ctx, op);
+      const scope = op.type === 'conventions' || op.type === 'mergeMcp' ? 'shared' : compScope;
+      // A local vendored file must live under .claude/ so the managed
+      // .claude/.gitignore can actually cover it — otherwise it would silently
+      // leak into commits, defeating the point of local scope.
+      if (scope === 'local' && op.type === 'vendorFile' && !op.dest.replace(/\\/g, '/').startsWith('.claude/')) {
+        throw new Error(`Local component "${id}" vendors "${op.dest}" outside .claude/ — local files must live under .claude/ to stay git-ignored.`);
+      }
+      const planned = PLANNERS[op.type](ctx, op, scope);
       planned.component = id;
+      planned.scope = scope;
       ops.push(planned);
     }
   }
@@ -386,11 +440,75 @@ function buildPlan(ctx, componentIds) {
   return { ops, conflicts };
 }
 
+// ---------- managed .claude/.gitignore for local artifacts ----------
+// We use `#`-style comment markers (NOT merge.cjs's HTML-comment markers, which
+// are wrong for a .gitignore). The block is recomputed from the local manifest
+// each apply so it stays accurate and never duplicates.
+const GITIGNORE_BEGIN = '# BEGIN 2ts-claude:local';
+const GITIGNORE_END = '# END 2ts-claude:local';
+const GITIGNORE_REL = path.join('.claude', '.gitignore');
+
+// Entries are paths relative to .claude/ (where the .gitignore lives).
+function localGitignoreEntries(ctx) {
+  const entries = ['settings.local.json', '.2ts-claude.local.json'];
+  for (const f of ctx.manifestFor('local').files) {
+    // f.path is repo-relative (e.g. .claude/local/x.cjs) -> relative to .claude/.
+    const rel = path.relative('.claude', f.path).split(path.sep).join('/');
+    entries.push(rel);
+  }
+  // De-dupe, preserve order.
+  return Array.from(new Set(entries));
+}
+
+// Replace (or insert) the managed block within an existing .gitignore body,
+// preserving any user lines outside the markers. Returns the new content.
+function upsertGitignoreBlock(existing, entries) {
+  const block = [GITIGNORE_BEGIN, ...entries, GITIGNORE_END].join('\n');
+  if (!existing) return block + '\n';
+  const lines = existing.split('\n');
+  const beginIdx = lines.indexOf(GITIGNORE_BEGIN);
+  const endIdx = lines.indexOf(GITIGNORE_END);
+  if (beginIdx !== -1 && endIdx !== -1 && endIdx >= beginIdx) {
+    const before = lines.slice(0, beginIdx);
+    const after = lines.slice(endIdx + 1);
+    const merged = [...before, ...block.split('\n'), ...after].join('\n');
+    return merged.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '');
+  }
+  const sep = existing.endsWith('\n') ? '' : '\n';
+  return `${existing}${sep}${block}\n`;
+}
+
+// Remove the managed block, preserving user lines. Returns the new content
+// (may be empty/whitespace, in which case the caller deletes the file).
+function removeGitignoreBlock(existing) {
+  if (!existing) return existing;
+  const lines = existing.split('\n');
+  const beginIdx = lines.indexOf(GITIGNORE_BEGIN);
+  const endIdx = lines.indexOf(GITIGNORE_END);
+  if (beginIdx === -1 || endIdx === -1 || endIdx < beginIdx) return existing;
+  const before = lines.slice(0, beginIdx);
+  const after = lines.slice(endIdx + 1);
+  return [...before, ...after].join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '');
+}
+
+function hasLocalArtifacts(ctx) {
+  const lm = ctx.manifestFor('local');
+  return (
+    lm.files.length > 0 ||
+    ctx.touched.has('settingsLocal') ||
+    (lm.settings && (lm.settings.allow.length || lm.settings.deny.length || lm.settings.hooks.length || Object.keys(lm.settings.scalars).length))
+  );
+}
+
 function flush(ctx) {
   const claudeDir = path.join(ctx.repoRoot, '.claude');
   if (ctx.touched.has('settings')) {
     fs.mkdirSync(claudeDir, { recursive: true });
-    fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify(ctx.settings, null, 2) + '\n');
+    fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify(ctx.settingsFor('shared'), null, 2) + '\n');
+  }
+  if (ctx.touched.has('settingsLocal')) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(path.join(claudeDir, 'settings.local.json'), JSON.stringify(ctx.settingsFor('local'), null, 2) + '\n');
   }
   if (ctx.touched.has('mcp')) {
     fs.writeFileSync(path.join(ctx.repoRoot, '.mcp.json'), JSON.stringify(ctx.mcp, null, 2) + '\n');
@@ -400,6 +518,13 @@ function flush(ctx) {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, ctx.text(rel));
   }
+  // Managed .claude/.gitignore — only when local artifacts exist.
+  if (hasLocalArtifacts(ctx)) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+    const giAbs = path.join(ctx.repoRoot, GITIGNORE_REL);
+    const existing = readFileOr(giAbs, '');
+    fs.writeFileSync(giAbs, upsertGitignoreBlock(existing, localGitignoreEntries(ctx)));
+  }
 }
 
 function applyPlan(ctx, plan, componentIds, opts) {
@@ -408,18 +533,43 @@ function applyPlan(ctx, plan, componentIds, opts) {
     const decision = planned.conflict ? (opts.force ? 'overwrite' : resolutions[planned.conflictKey] || 'skip') : null;
     APPLIERS[planned.type](ctx, planned, decision);
   }
-  ctx.manifest.components = merge.unionArray(ctx.manifest.components, componentIds).result;
-  ctx.manifest.schema = manifestLib.SCHEMA_VERSION;
-  ctx.manifest.pluginVersion = readPluginVersion(ctx.pluginRoot);
+
+  // Route each applied component id into its own scope's manifest.
+  const sharedIds = componentIds.filter((id) => components.scopeOf(id) !== 'local');
+  const localIds = componentIds.filter((id) => components.scopeOf(id) === 'local');
+  const pluginVersion = readPluginVersion(ctx.pluginRoot);
+
+  const shared = ctx.manifestFor('shared');
+  const local = ctx.manifestFor('local');
+
+  // Did we actually touch each manifest? Stamp + write only those.
+  const sharedTouched = sharedIds.length > 0 || ctx.touched.has('settings') || ctx.touched.has('mcp');
+  const localTouched = localIds.length > 0;
+
+  if (sharedTouched) {
+    shared.components = merge.unionArray(shared.components, sharedIds).result;
+    shared.schema = manifestLib.SCHEMA_VERSION;
+    shared.pluginVersion = pluginVersion;
+  }
+  if (localTouched) {
+    local.components = merge.unionArray(local.components, localIds).result;
+    local.schema = manifestLib.SCHEMA_VERSION;
+    local.pluginVersion = pluginVersion;
+  }
+
   flush(ctx);
-  manifestLib.write(ctx.repoRoot, ctx.manifest);
+
+  if (sharedTouched) manifestLib.write(ctx.repoRoot, shared, 'shared');
+  // Only create/write the local manifest when a local component was applied.
+  if (localTouched) manifestLib.write(ctx.repoRoot, local, 'local');
 }
 
 // ---------- remove ----------
-function removeAll(ctx) {
-  const m = ctx.manifest;
-  const removed = [];
-  const kept = [];
+// Reverse the vendored files + settings (allow/deny/hooks/scalars) recorded in
+// one scope's manifest, against the matching settings file. Shared scope also
+// reverses claudeMd blocks + mcp (handled by the caller).
+function removeScope(ctx, scope, removed, kept) {
+  const m = ctx.manifestFor(scope);
   // Vendored files: delete only if unchanged from what we wrote.
   for (const f of m.files) {
     const abs = path.join(ctx.repoRoot, f.path);
@@ -430,8 +580,9 @@ function removeAll(ctx) {
       removed.push(f.path);
     } else kept.push(f.path);
   }
-  // Settings.
-  const s = readJsonOr(path.join(ctx.repoRoot, '.claude', 'settings.json'), null);
+  // Settings (settings.json for shared, settings.local.json for local).
+  const settingsAbs = path.join(ctx.repoRoot, settingsRel(scope));
+  const s = readJsonOr(settingsAbs, null);
   if (s) {
     if (s.permissions) {
       for (const key of ['allow', 'deny']) {
@@ -453,11 +604,49 @@ function removeAll(ctx) {
     for (const [keyPath, val] of Object.entries(m.settings.scalars)) {
       if (deepEqual(getPath(s, keyPath), val)) deletePath(s, keyPath);
     }
-    fs.writeFileSync(path.join(ctx.repoRoot, '.claude', 'settings.json'), JSON.stringify(s, null, 2) + '\n');
+    // If stripping our entries reduced the file to no meaningful content (only
+    // empty objects/arrays remain), delete it rather than leaving a stray `{}`.
+    // This matters most for the local scope: once the managed .claude/.gitignore
+    // block is also removed, a leftover settings.local.json would be committable.
+    if (isEffectivelyEmpty(s)) {
+      fs.rmSync(settingsAbs);
+      pruneEmptyDirs(path.dirname(settingsAbs), path.join(ctx.repoRoot, '.claude'));
+    } else {
+      fs.writeFileSync(settingsAbs, JSON.stringify(s, null, 2) + '\n');
+    }
   }
-  // Marker blocks in CLAUDE.md / AGENTS.md (only if unchanged), using the file
-  // recorded for each block.
-  for (const [id, rec] of Object.entries(m.claudeMd)) {
+}
+
+// True when an object has no keys, or every value is itself an empty object or
+// empty array (one level deep — e.g. `{ permissions: {}, hooks: {} }`). Any
+// scalar, non-empty array, or non-empty nested object counts as real content.
+function isEffectivelyEmpty(obj) {
+  if (obj == null || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  for (const val of Object.values(obj)) {
+    if (Array.isArray(val)) {
+      if (val.length > 0) return false;
+    } else if (val != null && typeof val === 'object') {
+      if (Object.keys(val).length > 0) return false;
+    } else {
+      // scalar (string/number/boolean/null) is meaningful content
+      return false;
+    }
+  }
+  return true;
+}
+
+function removeAll(ctx) {
+  const removed = [];
+  const kept = [];
+  const shared = ctx.manifestFor('shared');
+
+  // Reverse both scopes' vendored files + settings.
+  removeScope(ctx, 'shared', removed, kept);
+  removeScope(ctx, 'local', removed, kept);
+
+  // Shared-only: marker blocks in CLAUDE.md / AGENTS.md (only if unchanged),
+  // using the file recorded for each block.
+  for (const [id, rec] of Object.entries(shared.claudeMd)) {
     const fileRel = rec.file || 'CLAUDE.md';
     const abs = path.join(ctx.repoRoot, fileRel);
     if (!fs.existsSync(abs)) continue;
@@ -472,16 +661,26 @@ function removeAll(ctx) {
       kept.push(`${fileRel}:${id}`);
     }
   }
-  // MCP servers.
+  // Shared-only: MCP servers.
   const mcpPath = path.join(ctx.repoRoot, '.mcp.json');
-  if (fs.existsSync(mcpPath) && m.mcp.length) {
+  if (fs.existsSync(mcpPath) && shared.mcp.length) {
     const mcp = readJsonOr(mcpPath, { mcpServers: {} });
-    for (const name of m.mcp) if (mcp.mcpServers) delete mcp.mcpServers[name];
+    for (const name of shared.mcp) if (mcp.mcpServers) delete mcp.mcpServers[name];
     fs.writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n');
   }
-  // Drop the manifest.
-  const manifestAbs = manifestLib.manifestPath(ctx.repoRoot);
-  if (fs.existsSync(manifestAbs)) fs.rmSync(manifestAbs);
+  // Strip the managed block from .claude/.gitignore; delete the file if it
+  // becomes empty/only-whitespace.
+  const giAbs = path.join(ctx.repoRoot, GITIGNORE_REL);
+  if (fs.existsSync(giAbs)) {
+    const stripped = removeGitignoreBlock(fs.readFileSync(giAbs, 'utf8'));
+    if (stripped.trim() === '') fs.rmSync(giAbs);
+    else fs.writeFileSync(giAbs, stripped.endsWith('\n') ? stripped : stripped + '\n');
+  }
+  // Drop both manifest files.
+  for (const scope of ['shared', 'local']) {
+    const manifestAbs = manifestLib.manifestPath(ctx.repoRoot, scope);
+    if (fs.existsSync(manifestAbs)) fs.rmSync(manifestAbs);
+  }
   return { removed, kept };
 }
 function deletePath(obj, keyPath) {
@@ -517,7 +716,8 @@ function printHuman(plan, ctx, mode) {
   for (const op of plan.ops) {
     const flag = op.conflict ? '⚠ CONFLICT' : op.action;
     const detail = op.detail ? ` — ${op.detail}` : '';
-    lines.push(`  [${op.component}] ${op.type} → ${op.target}: ${flag}${detail}`);
+    const tag = op.scope === 'local' ? `${op.component}/local` : op.component;
+    lines.push(`  [${tag}] ${op.type} → ${op.target}: ${flag}${detail}`);
   }
   if (plan.conflicts.length) {
     lines.push('');
@@ -558,7 +758,7 @@ function main() {
       repoRoot,
       pluginRoot,
       components: componentIds,
-      ops: plan.ops.map((o) => ({ component: o.component, type: o.type, target: o.target, action: o.action, conflict: o.conflict, conflictKey: o.conflictKey, detail: o.detail })),
+      ops: plan.ops.map((o) => ({ component: o.component, scope: o.scope, type: o.type, target: o.target, action: o.action, conflict: o.conflict, conflictKey: o.conflictKey, detail: o.detail })),
       conflicts: plan.conflicts,
     };
     process.stdout.write(JSON.stringify(payload, null, 2) + '\n');

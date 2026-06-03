@@ -6,10 +6,15 @@ const fs = require('fs');
 const path = require('path');
 
 const MANIFEST_REL = path.join('.claude', '.2ts-claude.json');
+const MANIFEST_LOCAL_REL = path.join('.claude', '.2ts-claude.local.json');
 const SCHEMA_VERSION = 1;
 
-function manifestPath(repoRoot) {
-  return path.join(repoRoot, MANIFEST_REL);
+function relFor(scope) {
+  return scope === 'local' ? MANIFEST_LOCAL_REL : MANIFEST_REL;
+}
+
+function manifestPath(repoRoot, scope = 'shared') {
+  return path.join(repoRoot, relFor(scope));
 }
 
 function empty() {
@@ -24,8 +29,8 @@ function empty() {
   };
 }
 
-function read(repoRoot) {
-  const p = manifestPath(repoRoot);
+function read(repoRoot, scope = 'shared') {
+  const p = manifestPath(repoRoot, scope);
   if (!fs.existsSync(p)) return empty(); // absent: fine, start fresh
   let raw;
   try {
@@ -46,8 +51,8 @@ function read(repoRoot) {
   }
 }
 
-function write(repoRoot, manifest) {
-  const p = manifestPath(repoRoot);
+function write(repoRoot, manifest, scope = 'shared') {
+  const p = manifestPath(repoRoot, scope);
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(manifest, null, 2) + '\n');
 }
@@ -58,6 +63,7 @@ function fileEntry(manifest, relPath) {
 
 module.exports = {
   MANIFEST_REL,
+  MANIFEST_LOCAL_REL,
   SCHEMA_VERSION,
   manifestPath,
   empty,

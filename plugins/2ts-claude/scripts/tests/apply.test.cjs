@@ -353,6 +353,130 @@ describe('workflow-hooks lint-on-edit', () => {
   });
 });
 
+describe('local scope', () => {
+  const TEST_ID = '__test-local';
+  beforeEach(() => {
+    components.COMPONENTS[TEST_ID] = {
+      title: 't',
+      description: 'd',
+      default: false,
+      scope: 'local',
+      ops: [
+        { type: 'vendorFile', src: 'assets/mcp.json', dest: '.claude/local/test-file.json' },
+        { type: 'hookWire', event: 'UserPromptSubmit', matcher: '*', command: 'node "${CLAUDE_PROJECT_DIR}/.claude/local/test-file.json"' },
+      ],
+    };
+  });
+  afterEach(() => {
+    delete components.COMPONENTS[TEST_ID];
+  });
+
+  it('lands the vendored file and records it only in the local manifest', () => {
+    apply([TEST_ID]);
+    assert.ok(fs.existsSync(path.join(repo, '.claude/local/test-file.json')), 'vendored file landed');
+    const lm = readJson('.claude/.2ts-claude.local.json');
+    assert.ok(lm.files.some((f) => f.path === '.claude/local/test-file.json'), 'recorded in local manifest');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.json')), 'no shared manifest for a local-only apply');
+  });
+
+  it('wires the hook into settings.local.json and does not create settings.json', () => {
+    apply([TEST_ID]);
+    const sl = readJson('.claude/settings.local.json');
+    const cmd = sl.hooks.UserPromptSubmit[0].hooks[0].command;
+    assert.match(cmd, /test-file\.json/);
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/settings.json')), 'settings.json not created');
+    const lm = readJson('.claude/.2ts-claude.local.json');
+    assert.equal(lm.settings.hooks.length, 1, 'hook recorded in local manifest');
+  });
+
+  it('writes a managed .claude/.gitignore block listing the local artifacts', () => {
+    apply([TEST_ID]);
+    const gi = read('.claude/.gitignore');
+    assert.match(gi, /# BEGIN 2ts-claude:local/);
+    assert.match(gi, /# END 2ts-claude:local/);
+    assert.match(gi, /settings\.local\.json/);
+    assert.match(gi, /\.2ts-claude\.local\.json/);
+    assert.match(gi, /local\/test-file\.json/);
+  });
+
+  it('is idempotent: re-apply is all-noop with no duplicate gitignore entries', () => {
+    apply([TEST_ID]);
+    const second = plan([TEST_ID]);
+    assert.equal(second.conflicts.length, 0);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 'every op noop on re-run');
+    apply([TEST_ID]);
+    const gi = read('.claude/.gitignore');
+    assert.equal((gi.match(/local\/test-file\.json/g) || []).length, 1, 'no duplicate gitignore entry');
+    assert.equal((gi.match(/# BEGIN 2ts-claude:local/g) || []).length, 1, 'single managed block');
+    const sl = readJson('.claude/settings.local.json');
+    assert.equal(sl.hooks.UserPromptSubmit.length, 1, 'hook not duplicated');
+  });
+
+  it('routes a mixed apply: shared op -> settings.json/shared manifest, local op -> settings.local.json/local manifest', () => {
+    apply(['settings', TEST_ID]);
+    // Shared side.
+    const s = readJson('.claude/settings.json');
+    assert.ok(s.permissions.allow.includes('Bash(git status:*)'), 'shared allow-list landed in settings.json');
+    const sm = readJson('.claude/.2ts-claude.json');
+    assert.ok(sm.components.includes('settings'), 'shared manifest lists settings');
+    assert.ok(!sm.components.includes(TEST_ID), 'shared manifest does not list the local component');
+    // Local side.
+    const sl = readJson('.claude/settings.local.json');
+    assert.match(sl.hooks.UserPromptSubmit[0].hooks[0].command, /test-file\.json/);
+    const lm = readJson('.claude/.2ts-claude.local.json');
+    assert.ok(lm.components.includes(TEST_ID), 'local manifest lists the local component');
+    assert.ok(!lm.components.includes('settings'), 'local manifest does not list the shared component');
+  });
+
+  it('removeAll reverses both scopes cleanly', () => {
+    apply(['settings', TEST_ID]);
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    // Local artifacts gone.
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/local/test-file.json')), 'local file removed');
+    // settings.local.json held only our hook, so it is deleted once stripped
+    // (no stray empty `{}` left to accidentally commit).
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/settings.local.json')), 'emptied settings.local.json removed');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.gitignore')), 'gitignore removed (became empty)');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.local.json')), 'local manifest dropped');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.json')), 'shared manifest dropped');
+    // Shared side reversed too.
+    const s = readJson('.claude/settings.json');
+    assert.ok(!s.permissions.allow.includes('Bash(git status:*)'), 'shared allow removed');
+  });
+
+  it('removing a local-only install leaves no settings.local.json, manifests, or .gitignore behind', () => {
+    apply([TEST_ID]);
+    assert.ok(fs.existsSync(path.join(repo, '.claude/settings.local.json')), 'settings.local.json created on apply');
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/settings.local.json')), 'emptied settings.local.json deleted');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.local.json')), 'local manifest dropped');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.gitignore')), 'managed gitignore dropped');
+  });
+
+  it('preserves settings.local.json that also holds a user-added key, stripping only our hook', () => {
+    apply([TEST_ID]);
+    // User adds their own key alongside our wired hook.
+    const slPath = path.join(repo, '.claude/settings.local.json');
+    const sl = readJson('.claude/settings.local.json');
+    sl.env = { MY_VAR: '1' };
+    fs.writeFileSync(slPath, JSON.stringify(sl, null, 2) + '\n');
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.ok(fs.existsSync(slPath), 'settings.local.json with user content preserved');
+    const after = readJson('.claude/settings.local.json');
+    assert.deepEqual(after.env, { MY_VAR: '1' }, 'user key kept');
+    assert.ok(!after.hooks || !after.hooks.UserPromptSubmit, 'our hook stripped');
+  });
+
+  it('a shared-only apply does not create local manifest or .claude/.gitignore', () => {
+    apply(['settings']);
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.2ts-claude.local.json')), 'no local manifest');
+    assert.ok(!fs.existsSync(path.join(repo, '.claude/.gitignore')), 'no managed gitignore');
+  });
+});
+
 describe('manifest', () => {
   it('stamps the plugin version on apply', () => {
     apply(['conventions']);
