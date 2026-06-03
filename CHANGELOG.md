@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/elliottsencan/2ts-claude/compare/v0.4.0...v0.5.0) (2026-06-03)
+
+
+### Features
+
+* add /pr command via command-pr component ([4d2c128](https://github.com/elliottsencan/2ts-claude/commit/4d2c12851f001d7cac01e3d06699aaf5c8f2150b))
+* add dependabot component ([c5a7a08](https://github.com/elliottsencan/2ts-claude/commit/c5a7a08d225248d972bdd0ff85cc0d521a6a1eda))
+* add durable repo-default components ([84bdce3](https://github.com/elliottsencan/2ts-claude/commit/84bdce35a0d14404b74039c9404348ef6679a4ba))
+* add editorconfig component ([3c54049](https://github.com/elliottsencan/2ts-claude/commit/3c54049b080ba59232c3ab5129ef2dcef9abde3d))
+* add gitattributes component ([290fc28](https://github.com/elliottsencan/2ts-claude/commit/290fc282948038f334e8f8e5a3f39966dea9db04))
+* add lint-on-edit hook to workflow-hooks component ([a5bd657](https://github.com/elliottsencan/2ts-claude/commit/a5bd657538e795ee9c09ada1f932ab60033af296))
+* add pr-template component ([25e1ab2](https://github.com/elliottsencan/2ts-claude/commit/25e1ab291424925092fb2b14d1e8af7a525b7888))
+* allow typecheck and lint commands without a prompt ([bd6bc8f](https://github.com/elliottsencan/2ts-claude/commit/bd6bc8fab05f743534efe41847e0d11e8f1bb494))
+* treat agent and MCP output as untrusted input ([c7423db](https://github.com/elliottsencan/2ts-claude/commit/c7423dba1c9c046f90de4dcb4b2a75a3a6c7ee89))
+
 ## [0.4.0](https://github.com/elliottsencan/2ts-claude/compare/v0.3.0...v0.4.0) (2026-06-03)
 
 
