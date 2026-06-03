@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/elliottsencan/2ts-claude/compare/v0.3.0...v0.4.0) (2026-06-03)
+
+
+### Features
+
+* add AGENTS.md interop, deny defaults, CI secret scan, drift reminder ([90c5b3b](https://github.com/elliottsencan/2ts-claude/commit/90c5b3bb870b1886506376a9721ed3b811b79dc5))
+* AGENTS.md interop, deny defaults, CI secret scan, drift reminder ([241e867](https://github.com/elliottsencan/2ts-claude/commit/241e86779329a845fc2d08d08ff017e8f5dd7fd5))
+* drift reminder also checks latest published version ([8950642](https://github.com/elliottsencan/2ts-claude/commit/89506425179e9a80ea8a61812a684b123b82b46d))
+
+
+### Bug Fixes
+
+* address PR review — AGENTS.md migration, corrupt-manifest safety, hook deadline ([9ae6201](https://github.com/elliottsencan/2ts-claude/commit/9ae62018d8066b8e9d2c6adb93106c921bccc6bb))
+
 ## [0.3.0](https://github.com/elliottsencan/2ts-claude/compare/v0.2.0...v0.3.0) (2026-06-03)
 
 
