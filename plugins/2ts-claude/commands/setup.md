@@ -23,7 +23,7 @@ Follow these steps:
 3. **Resolve conflicts.** If `conflicts` is non-empty, present each one and ask the user how to handle it — they each mean "you (or this repo) already have something here":
    - `file:<path>` — a vendored file exists and differs from what we'd write (you customized it, or it predates us).
    - `setting:<key>` — a settings scalar (e.g. `permissions.defaultMode`) already has a different value.
-   - `claudemd:<id>` — the managed CLAUDE.md block was edited by hand since we last wrote it.
+   - `conventions:<id>` — the managed conventions block (in CLAUDE.md or AGENTS.md) was edited by hand since we last wrote it.
 
    For each, offer **skip** (keep their version — the safe default) or **overwrite** (replace with ours). Offer to show the diff first when useful. Build a resolutions object `{ "<conflictKey>": "overwrite" | "skip" }`.
 
