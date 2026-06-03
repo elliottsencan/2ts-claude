@@ -6,7 +6,7 @@
 //
 // Operation types (handled in apply.cjs):
 //   vendorFile      { src, dest, executable? }   copy a file into the repo, hashed in the manifest
-//   claudeMdBlock   { id, src }                   upsert a marker block in <repo>/CLAUDE.md
+//   conventions     { id, src }                   upsert a marker block (AGENTS.md if present, else CLAUDE.md) + @AGENTS.md import
 //   mergeSettings   { src }                       deep-merge a settings JSON (allow union, scalars set-if-absent)
 //   settingsScalar  { keyPath, value }            set a dotted settings key only if absent
 //   hookWire        { event, matcher, command }   append a hook entry into .claude/settings.json
@@ -34,10 +34,10 @@ const COMPONENTS = {
   },
 
   conventions: {
-    title: 'CLAUDE.md conventions',
-    description: 'Insert the shared coding conventions as a managed block in CLAUDE.md.',
+    title: 'Conventions block',
+    description: 'Insert shared coding conventions as a managed block (AGENTS.md if present, else CLAUDE.md).',
     default: true,
-    ops: [{ type: 'claudeMdBlock', id: 'conventions', src: 'assets/claude-md.md' }],
+    ops: [{ type: 'conventions', id: 'conventions', src: 'assets/claude-md.md' }],
   },
 
   settings: {
@@ -84,6 +84,13 @@ const COMPONENTS = {
     description: 'Add context7 and playwright MCP servers to .mcp.json.',
     default: false,
     ops: [{ type: 'mergeMcp', src: 'assets/mcp.json' }],
+  },
+
+  'ci-secret-scan': {
+    title: 'CI secret scan',
+    description: 'Add a gitleaks GitHub Action that scans for committed secrets on push/PR (runs in CI, no local friction).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/github/secret-scan.yml', dest: '.github/workflows/secret-scan.yml' }],
   },
 
   agents: {

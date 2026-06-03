@@ -88,6 +88,13 @@ describe('non-clobber merge', () => {
     assert.ok(s.permissions.allow.includes('Bash(git status:*)'), 'ours added');
   });
 
+  it('unions permissions.deny defaults', () => {
+    apply(['settings']);
+    const s = readJson('.claude/settings.json');
+    assert.ok(Array.isArray(s.permissions.deny), 'deny present');
+    assert.ok(s.permissions.deny.includes('Read(./.env)'), 'deny default added');
+  });
+
   it('flags a scalar collision as a conflict and keeps the user value by default', () => {
     const p = plan(['settings']);
     assert.ok(p.conflicts.some((c) => c.key === 'setting:permissions.defaultMode'));
@@ -105,6 +112,33 @@ describe('non-clobber merge', () => {
     const cm = read('CLAUDE.md');
     assert.match(cm, /user wrote this/);
     assert.match(cm, /BEGIN 2ts-claude:conventions/);
+  });
+});
+
+describe('AGENTS.md interop', () => {
+  it('targets AGENTS.md for conventions and adds @AGENTS.md import to CLAUDE.md', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n\nexisting agent rules\n');
+    apply(['conventions']);
+    const agents = read('AGENTS.md');
+    assert.match(agents, /existing agent rules/, 'user AGENTS.md content kept');
+    assert.match(agents, /BEGIN 2ts-claude:conventions/, 'block written into AGENTS.md');
+    const cm = read('CLAUDE.md');
+    assert.match(cm, /@AGENTS\.md/, 'CLAUDE.md imports AGENTS.md');
+    assert.doesNotMatch(cm, /BEGIN 2ts-claude:conventions/, 'conventions not duplicated in CLAUDE.md');
+  });
+
+  it('is idempotent with AGENTS.md present', () => {
+    fs.writeFileSync(path.join(repo, 'AGENTS.md'), '# Agents\n');
+    apply(['conventions']);
+    const p = plan(['conventions']);
+    assert.equal(p.conflicts.length, 0);
+    assert.ok(p.ops.every((o) => o.action === 'noop'), 'all noop on re-run');
+  });
+
+  it('targets CLAUDE.md when no AGENTS.md exists', () => {
+    apply(['conventions']);
+    assert.match(read('CLAUDE.md'), /BEGIN 2ts-claude:conventions/);
+    assert.ok(!fs.existsSync(path.join(repo, 'AGENTS.md')), 'no AGENTS.md created');
   });
 });
 

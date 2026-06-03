@@ -15,6 +15,7 @@ function manifestPath(repoRoot) {
 function empty() {
   return {
     schema: SCHEMA_VERSION,
+    pluginVersion: null, // plugin version recorded at last apply (drift detection)
     components: [],
     files: [], // { path, sha256 } — repo-relative
     settings: { allow: [], deny: [], hooks: [], scalars: {} }, // hooks: { event, command }
