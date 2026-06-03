@@ -73,6 +73,7 @@ const COMPONENTS = {
     title: 'Permission notifications',
     description: 'Send a Slack message when the assistant needs input (requires CCH_SLA_WEBHOOK).',
     default: false,
+    notes: ['Set the CCH_SLA_WEBHOOK env var to a Slack incoming-webhook URL — the hook stays silent until it is present.'],
     ops: [
       vendorHook('hooks/notification/notify-permission.cjs', '.claude/hooks/notification/notify-permission.cjs'),
       { type: 'hookWire', event: 'Notification', matcher: 'permission_prompt|idle_prompt|elicitation_dialog', command: hookCommand('.claude/hooks/notification/notify-permission.cjs') },
@@ -93,6 +94,10 @@ const COMPONENTS = {
     title: 'MCP servers',
     description: 'Add context7 and playwright MCP servers to .mcp.json.',
     default: false,
+    notes: [
+      'Both servers launch via npx, so Node/npx must be on PATH; playwright downloads a browser on first use.',
+      'context7 works keyless but rate-limits anonymous use — set CONTEXT7_API_KEY for higher limits.',
+    ],
     ops: [{ type: 'mergeMcp', src: 'assets/mcp.json' }],
   },
 
@@ -129,6 +134,22 @@ const COMPONENTS = {
     description: 'Add a grouped, weekly Dependabot config for github-actions and npm (low PR noise).',
     default: false,
     ops: [{ type: 'vendorFile', src: 'assets/github/dependabot.yml', dest: '.github/dependabot.yml' }],
+  },
+
+  'release-please': {
+    title: 'release-please',
+    description: 'Conventional-commit driven releases: a GitHub Action + config that maintains CHANGELOG.md, version bumps, and tags.',
+    default: false,
+    notes: [
+      "Enable Settings → Actions → General → Workflow permissions → 'Allow GitHub Actions to create and approve pull requests' — release-please can't open its release PR without it.",
+      'The config assumes a Node package (release-type: node). For another language, edit release-please-config.json (e.g. release-type: simple | python | go | rust).',
+      'The manifest bootstraps at 0.0.0. If this repo already has releases, set the version in .release-please-manifest.json (and package.json) to the current version.',
+    ],
+    ops: [
+      { type: 'vendorFile', src: 'assets/github/release-please/workflow.yml', dest: '.github/workflows/release-please.yml' },
+      { type: 'vendorFile', src: 'assets/github/release-please/config.json', dest: 'release-please-config.json' },
+      { type: 'vendorFile', src: 'assets/github/release-please/manifest.json', dest: '.release-please-manifest.json' },
+    ],
   },
 
   agents: {
@@ -171,6 +192,7 @@ const COMPONENTS = {
     description: 'Add the /wiki command to query your personal reading wiki on demand (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
     default: false,
     scope: 'local',
+    notes: ['Point the ELLIOTTSENCAN_WIKI_DIR env var at your wiki checkout — /wiki has nothing to query until it is set.'],
     ops: [
       { type: 'vendorFile', src: 'assets/commands/wiki.md', dest: '.claude/commands/wiki.md' },
       vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
@@ -182,6 +204,7 @@ const COMPONENTS = {
     description: 'Quietly surface relevant wiki entries on each prompt, above a confidence threshold (local scope; reads $ELLIOTTSENCAN_WIKI_DIR).',
     default: false,
     scope: 'local',
+    notes: ['Point the ELLIOTTSENCAN_WIKI_DIR env var at your wiki checkout — the hook surfaces nothing until it is set. Tune sensitivity with WIKI_SURFACE_THRESHOLD.'],
     ops: [
       vendorHook('assets/wiki/wiki-query.cjs', '.claude/local/hooks/wiki-query.cjs'),
       vendorHook('assets/wiki/wiki-surface.cjs', '.claude/local/hooks/wiki-surface.cjs'),

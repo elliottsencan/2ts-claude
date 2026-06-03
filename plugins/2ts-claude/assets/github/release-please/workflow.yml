@@ -1,0 +1,27 @@
+name: release-please
+
+# Conventional-commit driven releases. On every push to main, release-please
+# maintains a single "release PR" that accumulates the changelog and the next
+# version bump; merging that PR tags the release and updates CHANGELOG.md.
+#
+# One repo setting is required for it to open PRs:
+#   Settings → Actions → General → Workflow permissions →
+#   "Allow GitHub Actions to create and approve pull requests"
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # config-file / manifest-file use the repo defaults:
+          #   release-please-config.json + .release-please-manifest.json
