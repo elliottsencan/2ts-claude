@@ -10,8 +10,11 @@
  * drives the false-positive (nag) rate to ~0 while keeping recall highest.
  * Override with WIKI_SURFACE_THRESHOLD.
  *
- * Reads the wiki via the sibling scorer (wiki-query.cjs), pointed at
- * $ELLIOTTSENCAN_WIKI_DIR. Never blocks, never throws.
+ * Reads the wiki via the sibling scorer (wiki-query.cjs), which serves a
+ * locally-cached index refreshed in the background from the canonical
+ * post-synthesis artifact ($ELLIOTTSENCAN_WIKI_INDEX_URL, default
+ * elliottsencan.com/wiki.json) and falls back to a local clone at
+ * $ELLIOTTSENCAN_WIKI_DIR. Never blocks on the network, never throws.
  *
  * Logs to: ~/.claude/hooks-logs/
  *
@@ -67,14 +70,20 @@ async function main() {
         const prompt = data && typeof data.prompt === 'string' ? data.prompt : '';
         const sessionId = data && data.session_id;
 
-        const wikiDir = process.env.ELLIOTTSENCAN_WIKI_DIR;
-        if (!wikiDir || !prompt.trim()) return console.log('{}'); // not configured / nothing to match
+        if (!prompt.trim()) return console.log('{}'); // nothing to match
 
         const scorer = loadScorer();
         if (!scorer || typeof scorer.query !== 'function') {
             log({ level: 'SKIP', reason: 'scorer unavailable', session_id: sessionId });
             return console.log('{}');
         }
+
+        // The scorer reads a background-refreshed cache of the wiki (canonical,
+        // post-synthesis) and falls back to a local clone. Stay silent only when
+        // neither source is configured.
+        const wikiDir = process.env.ELLIOTTSENCAN_WIKI_DIR;
+        const remoteEnabled = typeof scorer.resolveIndexUrl === 'function' && !!scorer.resolveIndexUrl();
+        if (!wikiDir && !remoteEnabled) return console.log('{}'); // wiki not configured at all
 
         const threshold = resolveThreshold();
         const matches = scorer.query(prompt, { wikiDir, limit: MAX_SUGGESTIONS, threshold });

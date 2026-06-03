@@ -34,6 +34,7 @@ function runHook(payload, env) {
 }
 
 let wikiRoot;
+let cacheRoot; // empty, so the scorer's cache read misses and it uses the fixture
 before(() => {
     // Build a tiny fixture corpus the scorer can resolve (<root>/src/content/wiki/*.md).
     wikiRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-surface-'));
@@ -43,38 +44,74 @@ before(() => {
         path.join(dir, 'flaky-tests.md'),
         '---\ntitle: Flaky tests\nsummary: Tests that pass and fail nondeterministically and how to quarantine them.\naliases:\n  - test-flakiness\n---\nFlaky tests undermine trust in CI.\n',
     );
+    cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-surface-cache-'));
 });
 after(() => {
     if (wikiRoot) fs.rmSync(wikiRoot, { recursive: true, force: true });
+    if (cacheRoot) fs.rmSync(cacheRoot, { recursive: true, force: true });
 });
 
+// Hermetic env: disable the remote index and isolate the cache so the hook can't
+// reach the network or read a developer's real ~/.claude/wiki-cache. Tests opt
+// into the local fixture by setting ELLIOTTSENCAN_WIKI_DIR via overrides.
+function env(overrides) {
+    return {
+        ...process.env,
+        ELLIOTTSENCAN_WIKI_INDEX_URL: '',
+        WIKI_CACHE_DIR: cacheRoot,
+        ...overrides,
+    };
+}
+
 describe('wiki-surface hook', () => {
-    it('is a silent no-op when ELLIOTTSENCAN_WIKI_DIR is unset', async () => {
-        const env = { ...process.env };
-        delete env.ELLIOTTSENCAN_WIKI_DIR;
-        const out = await runHook({ prompt: 'my flaky tests keep failing in CI', session_id: 't' }, env);
+    it('is a silent no-op when no wiki source is configured', async () => {
+        // No local dir and remote disabled -> nothing to query against.
+        const e = env();
+        delete e.ELLIOTTSENCAN_WIKI_DIR;
+        const out = await runHook({ prompt: 'my flaky tests keep failing in CI', session_id: 't' }, e);
         assert.deepStrictEqual(out, {});
     });
 
     it('is silent on an empty prompt', async () => {
-        const out = await runHook({ prompt: '   ', session_id: 't' }, { ...process.env, ELLIOTTSENCAN_WIKI_DIR: wikiRoot });
+        const out = await runHook({ prompt: '   ', session_id: 't' }, env({ ELLIOTTSENCAN_WIKI_DIR: wikiRoot }));
         assert.deepStrictEqual(out, {});
     });
 
     it('surfaces a strongly-matching concept as additionalContext', async () => {
         const out = await runHook(
             { prompt: 'how do I deal with flaky tests in my CI pipeline', session_id: 't' },
-            { ...process.env, ELLIOTTSENCAN_WIKI_DIR: wikiRoot },
+            env({ ELLIOTTSENCAN_WIKI_DIR: wikiRoot }),
         );
         assert.equal(out.hookSpecificOutput?.hookEventName, 'UserPromptSubmit');
         assert.match(out.hookSpecificOutput.additionalContext, /Flaky tests/);
         assert.match(out.hookSpecificOutput.additionalContext, /\/wiki\/flaky-tests/);
     });
 
+    it('surfaces from the cached index when only the remote source is configured', async () => {
+        // No local dir; a fresh cache stands in for the published index. Fresh
+        // meta means no background refresh fires, so this stays fully offline.
+        const dir = fs.mkdtempSync(path.join(cacheRoot, 'remote-only-'));
+        fs.writeFileSync(
+            path.join(dir, 'index.json'),
+            JSON.stringify([
+                { slug: 'flaky-tests', title: 'Flaky tests', summary: 'Tests that pass and fail nondeterministically.', aliases: ['test-flakiness'] },
+            ]),
+        );
+        fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({ fetchedAt: Date.now() }));
+        const e = {
+            ...process.env,
+            WIKI_CACHE_DIR: dir,
+            ELLIOTTSENCAN_WIKI_INDEX_URL: 'https://example.invalid/i.json',
+        };
+        delete e.ELLIOTTSENCAN_WIKI_DIR;
+        const out = await runHook({ prompt: 'how do I deal with flaky tests in my CI pipeline', session_id: 't' }, e);
+        assert.match(out.hookSpecificOutput.additionalContext, /\/wiki\/flaky-tests/);
+    });
+
     it('stays silent on an off-topic prompt (below threshold)', async () => {
         const out = await runHook(
             { prompt: 'what is a good sourdough hydration ratio for baking', session_id: 't' },
-            { ...process.env, ELLIOTTSENCAN_WIKI_DIR: wikiRoot },
+            env({ ELLIOTTSENCAN_WIKI_DIR: wikiRoot }),
         );
         assert.deepStrictEqual(out, {});
     });
@@ -84,13 +121,13 @@ describe('wiki-surface hook', () => {
         // high threshold filters it out.
         const out = await runHook(
             { prompt: 'undermine', session_id: 't' },
-            { ...process.env, ELLIOTTSENCAN_WIKI_DIR: wikiRoot, WIKI_SURFACE_THRESHOLD: '0.9' },
+            env({ ELLIOTTSENCAN_WIKI_DIR: wikiRoot, WIKI_SURFACE_THRESHOLD: '0.9' }),
         );
         assert.deepStrictEqual(out, {});
     });
 
     it('never throws on malformed stdin', async () => {
-        const out = await runHook('not json', { ...process.env, ELLIOTTSENCAN_WIKI_DIR: wikiRoot });
+        const out = await runHook('not json', env({ ELLIOTTSENCAN_WIKI_DIR: wikiRoot }));
         assert.deepStrictEqual(out, {});
     });
 });
