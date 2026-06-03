@@ -59,7 +59,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `safety-hooks` | ✅ | `block-dangerous-commands`, `protect-secrets` (PreToolUse) |
 | `conventions` | ✅ | Coding conventions block in `AGENTS.md` (if present) or `CLAUDE.md`, incl. an untrusted-input rule |
 | `settings` | ✅ | Permission allow-list + a narrow secret-file deny-list |
-| `workflow-hooks` | | `format-on-edit` (Prettier), `auto-stage` (git add) |
+| `workflow-hooks` | | `format-on-edit` (Prettier), `lint-on-edit` (ESLint `--fix`, where configured), `auto-stage` (git add) |
 | `notify-hook` | | Slack message on permission prompts (`CCH_SLA_WEBHOOK`) |
 | `statusline` | | Status line: model, branch, context-usage bar |
 | `mcp` | | `context7` and `playwright` MCP servers |

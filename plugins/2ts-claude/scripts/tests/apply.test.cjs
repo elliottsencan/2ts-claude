@@ -339,6 +339,20 @@ describe('durable repo-file components', () => {
   });
 });
 
+describe('workflow-hooks lint-on-edit', () => {
+  it('vendors lint-on-edit and wires it once on PostToolUse Edit|Write', () => {
+    apply(['workflow-hooks']);
+    assert.ok(fs.existsSync(path.join(repo, '.claude/hooks/post-tool-use/lint-on-edit.cjs')), 'hook vendored');
+    const s = readJson('.claude/settings.json');
+    const cmds = s.hooks.PostToolUse.flatMap((e) => e.hooks.map((h) => h.command));
+    const lintCmds = cmds.filter((c) => c.includes('lint-on-edit.cjs'));
+    assert.equal(lintCmds.length, 1, 'lint hook wired exactly once');
+    // Idempotent re-run.
+    const second = plan(['workflow-hooks']);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+  });
+});
+
 describe('manifest', () => {
   it('stamps the plugin version on apply', () => {
     apply(['conventions']);

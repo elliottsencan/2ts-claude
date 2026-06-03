@@ -49,11 +49,13 @@ const COMPONENTS = {
 
   'workflow-hooks': {
     title: 'Workflow hooks',
-    description: 'Format files with Prettier on edit and auto-stage assistant changes.',
+    description: 'Format files with Prettier on edit, lint with ESLint --fix (where configured), and auto-stage assistant changes.',
     default: false,
     ops: [
       vendorHook('hooks/post-tool-use/format-on-edit.cjs', '.claude/hooks/post-tool-use/format-on-edit.cjs'),
       { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/format-on-edit.cjs') },
+      vendorHook('hooks/post-tool-use/lint-on-edit.cjs', '.claude/hooks/post-tool-use/lint-on-edit.cjs'),
+      { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/lint-on-edit.cjs') },
       vendorHook('hooks/post-tool-use/auto-stage.cjs', '.claude/hooks/post-tool-use/auto-stage.cjs'),
       { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/auto-stage.cjs') },
     ],
