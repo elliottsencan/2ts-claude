@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "2ts-claude",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Personal Claude Code toolkit. Ships /setup, which durably merges sensible defaults (CLAUDE.md, .claude/ hooks/agents/skills, settings) into a repo without clobbering existing setup.",
   "author": {
     "name": "Elliott",

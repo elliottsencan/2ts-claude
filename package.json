@@ -1,6 +1,6 @@
 {
   "name": "2ts-claude",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Personal Claude Code toolkit (marketplace + plugin).",
   "scripts": {
