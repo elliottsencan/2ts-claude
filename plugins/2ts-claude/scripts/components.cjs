@@ -1,0 +1,131 @@
+// components.cjs — the registry of selectable components.
+//
+// Each component is a list of operations the engine executes against a target
+// repo. `src` paths are relative to the plugin root (CLAUDE_PLUGIN_ROOT);
+// `dest` paths are relative to the target repo root.
+//
+// Operation types (handled in apply.cjs):
+//   vendorFile      { src, dest, executable? }   copy a file into the repo, hashed in the manifest
+//   claudeMdBlock   { id, src }                   upsert a marker block in <repo>/CLAUDE.md
+//   mergeSettings   { src }                       deep-merge a settings JSON (allow union, scalars set-if-absent)
+//   settingsScalar  { keyPath, value }            set a dotted settings key only if absent
+//   hookWire        { event, matcher, command }   append a hook entry into .claude/settings.json
+//   mergeMcp        { src }                       union mcpServers from a JSON file into <repo>/.mcp.json
+
+function hookCommand(rel) {
+  return `node "$\{CLAUDE_PROJECT_DIR}/${rel}"`;
+}
+
+function vendorHook(srcRel, destRel) {
+  return { type: 'vendorFile', src: srcRel, dest: destRel };
+}
+
+const COMPONENTS = {
+  'safety-hooks': {
+    title: 'Safety hooks',
+    description: 'Block destructive shell commands and protect secrets/.env files.',
+    default: true,
+    ops: [
+      vendorHook('hooks/pre-tool-use/block-dangerous-commands.cjs', '.claude/hooks/pre-tool-use/block-dangerous-commands.cjs'),
+      { type: 'hookWire', event: 'PreToolUse', matcher: 'Bash', command: hookCommand('.claude/hooks/pre-tool-use/block-dangerous-commands.cjs') },
+      vendorHook('hooks/pre-tool-use/protect-secrets.cjs', '.claude/hooks/pre-tool-use/protect-secrets.cjs'),
+      { type: 'hookWire', event: 'PreToolUse', matcher: 'Read|Edit|Write|Bash', command: hookCommand('.claude/hooks/pre-tool-use/protect-secrets.cjs') },
+    ],
+  },
+
+  conventions: {
+    title: 'CLAUDE.md conventions',
+    description: 'Insert the shared coding conventions as a managed block in CLAUDE.md.',
+    default: true,
+    ops: [{ type: 'claudeMdBlock', id: 'conventions', src: 'assets/claude-md.md' }],
+  },
+
+  settings: {
+    title: 'Permission defaults',
+    description: 'Merge sensible permission allow-list defaults into .claude/settings.json.',
+    default: true,
+    ops: [{ type: 'mergeSettings', src: 'assets/settings-defaults.json' }],
+  },
+
+  'workflow-hooks': {
+    title: 'Workflow hooks',
+    description: 'Format files with Prettier on edit and auto-stage assistant changes.',
+    default: false,
+    ops: [
+      vendorHook('hooks/post-tool-use/format-on-edit.cjs', '.claude/hooks/post-tool-use/format-on-edit.cjs'),
+      { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/format-on-edit.cjs') },
+      vendorHook('hooks/post-tool-use/auto-stage.cjs', '.claude/hooks/post-tool-use/auto-stage.cjs'),
+      { type: 'hookWire', event: 'PostToolUse', matcher: 'Edit|Write', command: hookCommand('.claude/hooks/post-tool-use/auto-stage.cjs') },
+    ],
+  },
+
+  'notify-hook': {
+    title: 'Permission notifications',
+    description: 'Send a Slack message when the assistant needs input (requires CCH_SLA_WEBHOOK).',
+    default: false,
+    ops: [
+      vendorHook('hooks/notification/notify-permission.cjs', '.claude/hooks/notification/notify-permission.cjs'),
+      { type: 'hookWire', event: 'Notification', matcher: 'permission_prompt|idle_prompt|elicitation_dialog', command: hookCommand('.claude/hooks/notification/notify-permission.cjs') },
+    ],
+  },
+
+  statusline: {
+    title: 'Status line',
+    description: 'Status line showing model, git branch, and a context-usage bar.',
+    default: false,
+    ops: [
+      { type: 'vendorFile', src: 'assets/statusline.sh', dest: '.claude/statusline.sh', executable: true },
+      { type: 'settingsScalar', keyPath: 'statusLine', value: { type: 'command', command: 'bash "$\{CLAUDE_PROJECT_DIR}/.claude/statusline.sh"' } },
+    ],
+  },
+
+  mcp: {
+    title: 'MCP servers',
+    description: 'Add context7 and playwright MCP servers to .mcp.json.',
+    default: false,
+    ops: [{ type: 'mergeMcp', src: 'assets/mcp.json' }],
+  },
+
+  agents: {
+    title: 'Review agents',
+    description: 'Add the code-reviewer and bug-hunter subagents.',
+    default: false,
+    ops: [
+      { type: 'vendorFile', src: 'agents/code-reviewer.md', dest: '.claude/agents/code-reviewer.md' },
+      { type: 'vendorFile', src: 'agents/bug-hunter.md', dest: '.claude/agents/bug-hunter.md' },
+    ],
+  },
+
+  'skill-code-standards': {
+    title: 'code-standards skill',
+    description: 'Add the code-standards skill (logging, comments, review, debugging).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'skills/code-standards/SKILL.md', dest: '.claude/skills/code-standards/SKILL.md' }],
+  },
+
+  'command-handoff': {
+    title: 'handoff command',
+    description: 'Add the /handoff command for passing work to another session.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'commands/handoff.md', dest: '.claude/commands/handoff.md' }],
+  },
+};
+
+function defaultComponents() {
+  return Object.keys(COMPONENTS).filter((id) => COMPONENTS[id].default);
+}
+
+function allComponents() {
+  return Object.keys(COMPONENTS);
+}
+
+function resolve(selection) {
+  if (!selection || selection === 'default') return defaultComponents();
+  if (selection === 'all' || (Array.isArray(selection) && selection.includes('all'))) return allComponents();
+  const ids = Array.isArray(selection) ? selection : String(selection).split(',').map((s) => s.trim()).filter(Boolean);
+  const unknown = ids.filter((id) => !COMPONENTS[id]);
+  if (unknown.length) throw new Error(`Unknown component(s): ${unknown.join(', ')}`);
+  return ids;
+}
+
+module.exports = { COMPONENTS, defaultComponents, allComponents, resolve };
