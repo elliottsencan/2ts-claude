@@ -85,7 +85,7 @@ The aliases are global. The commit-message hook is per-repo — run `scripts/ins
 
 These run only for whoever has the plugin installed — never for teammates, who just get the durable committed config:
 
-- **Drift reminder** — a `SessionStart` hook nudges you to re-run `/setup` when a repo's stamped config lags the installed plugin. Silent unless stale.
+- **Drift reminder** — a `SessionStart` hook that nudges you when something is stale, silent otherwise. Two checks: (1) re-run `/setup` when a repo's stamped config lags your installed plugin; (2) run `claude plugin update` when your installed plugin lags the latest published version. The published check is cached 24h, times out at 1.5s, fails silently, and can be disabled with `CCH_NO_UPDATE_CHECK=1`.
 - **`/research-refresh`** — researches current Claude Code best practices and opens a PR proposing updates to the plugin's components. Kept separate from `/setup` so setup stays deterministic; schedule it with `/schedule` if you want it on a cadence.
 
 ## Tests
