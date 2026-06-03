@@ -259,26 +259,36 @@ describe('score IDF weighting', () => {
     { slug: 'c', title: '', summary: '', body: 'shared', aliases: [] },
   ];
 
-  it('is byte-identical to the baseline when off (default and strength 0)', () => {
+  it('applies IDF by default (default strength is 1.0)', () => {
     const q = 'shared rare';
-    const base = score(q, corpus, { threshold: 0 });
-    assert.ok(base.length > 0);
-    assert.deepEqual(score(q, corpus, { threshold: 0, idfStrength: 0 }), base);
+    assert.deepEqual(
+      score(q, corpus, { threshold: 0 }),
+      score(q, corpus, { threshold: 0, idfStrength: 1 }),
+    );
+  });
+
+  it('strength 0 reproduces the flat baseline arithmetic', () => {
+    // With every weight 1, raw = sum of best-field hits and denom = tokens * 5.
+    const flat = score('shared rare', corpus, { threshold: 0, idfStrength: 0 });
+    const a = flat.find((r) => r.slug === 'a').score;
+    const b = flat.find((r) => r.slug === 'b').score;
+    assert.ok(Math.abs(a - 0.2) < 1e-9, "'a' hits both body tokens -> 2/10");
+    assert.ok(Math.abs(b - 0.1) < 1e-9, "'b' hits one body token -> 1/10");
   });
 
   it('a single-token query is invariant to IDF (the weight cancels in raw/denom)', () => {
-    const base = score('shared', corpus, { threshold: 0 });
-    assert.deepEqual(score('shared', corpus, { threshold: 0, idfStrength: 1 }), base);
+    const flat = score('shared', corpus, { threshold: 0, idfStrength: 0 });
+    assert.deepEqual(score('shared', corpus, { threshold: 0, idfStrength: 1 }), flat);
   });
 
   it('demotes a match that hit only a common token, leaving a distinctive match intact', () => {
-    const base = score('shared rare', corpus, { threshold: 0 });
+    const flat = score('shared rare', corpus, { threshold: 0, idfStrength: 0 });
     const idf = score('shared rare', corpus, { threshold: 0, idfStrength: 1 });
     const s = (rs, slug) => rs.find((r) => r.slug === slug).score;
     // 'a' matched the rare high-IDF token -> unchanged; 'b' matched only the
     // common low-IDF token -> pushed down.
-    assert.ok(Math.abs(s(idf, 'a') - s(base, 'a')) < 1e-9, 'distinctive match unchanged');
-    assert.ok(s(idf, 'b') < s(base, 'b') - 1e-9, 'common-only match demoted');
+    assert.ok(Math.abs(s(idf, 'a') - s(flat, 'a')) < 1e-9, 'distinctive match unchanged');
+    assert.ok(s(idf, 'b') < s(flat, 'b') - 1e-9, 'common-only match demoted');
   });
 
   it('keeps scores normalized in [0,1] and preserves the correct #1', () => {
@@ -287,13 +297,18 @@ describe('score IDF weighting', () => {
     assert.equal(r[0].slug, 'a');
   });
 
-  it('reads strength from WIKI_IDF_STRENGTH when opts omit it', () => {
+  it('honors WIKI_IDF_STRENGTH, including =0 to disable', () => {
     const saved = process.env.WIKI_IDF_STRENGTH;
     try {
-      process.env.WIKI_IDF_STRENGTH = '1';
+      process.env.WIKI_IDF_STRENGTH = '0';
       assert.deepEqual(
         score('shared rare', corpus, { threshold: 0 }),
-        score('shared rare', corpus, { threshold: 0, idfStrength: 1 }),
+        score('shared rare', corpus, { threshold: 0, idfStrength: 0 }),
+      );
+      process.env.WIKI_IDF_STRENGTH = '1.5';
+      assert.deepEqual(
+        score('shared rare', corpus, { threshold: 0 }),
+        score('shared rare', corpus, { threshold: 0, idfStrength: 1.5 }),
       );
     } finally {
       if (saved === undefined) delete process.env.WIKI_IDF_STRENGTH;

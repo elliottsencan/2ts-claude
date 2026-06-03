@@ -262,17 +262,19 @@ function slugTokenSet(slug) {
   return set;
 }
 
-// --- IDF weighting (experimental, opt-in) ------------------------------------
+// --- IDF weighting -----------------------------------------------------------
 //
-// The baseline scorer treats every query token as equally informative, so a token
-// that appears in most entries (e.g. "agent") can clear the threshold on its own —
-// a precision leak. IDF down-weights such common tokens using corpus document
-// frequency. OFF by default (WIKI_IDF_STRENGTH / opts.idfStrength = 0), in which
-// case every weight is exactly 1 and score() is byte-identical to the baseline.
+// A flat scorer treats every query token as equally informative, so a token that
+// appears in most entries (e.g. "agent", df 29/45) can clear the threshold on its
+// own — a precision leak. IDF down-weights such common tokens using corpus
+// document frequency. ON by default at strength 1.0 (the wiki-idf-eval lab found
+// it lifts recall@1 94%->96% while cutting off-topic firing 33%->0% at the live
+// 0.15 threshold). Override with WIKI_IDF_STRENGTH / opts.idfStrength; set it to 0
+// to fall back to the flat baseline (every weight 1, byte-identical to pre-IDF).
 //
 // strength s tunes the effect: weight(t) = idf(t) ** s, with the smoothed
 // idf(t) = ln((N + 1) / (df(t) + 1)) + 1  (always >= 1). s = 0 -> all weights 1
-// (baseline); larger s -> common tokens contribute progressively less.
+// (flat baseline); larger s -> common tokens contribute progressively less.
 
 // The combined match-token set for one concept — the union the scorer can hit, so
 // document frequency is computed over exactly what query tokens are matched against.
@@ -301,9 +303,21 @@ function documentFrequencies(list) {
   return cached;
 }
 
+const DEFAULT_IDF_STRENGTH = 1.0;
+
+// Resolve strength from opts (highest precedence), then WIKI_IDF_STRENGTH, else the
+// default. An explicit 0 is honored (disables IDF) — only an absent/invalid value
+// falls back to the default. Negative values are clamped to the default.
 function resolveIdfStrength(opts) {
-  const raw = Number(opts && opts.idfStrength != null ? opts.idfStrength : process.env.WIKI_IDF_STRENGTH);
-  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  const provided =
+    opts && opts.idfStrength != null
+      ? opts.idfStrength
+      : process.env.WIKI_IDF_STRENGTH != null && process.env.WIKI_IDF_STRENGTH !== ''
+        ? process.env.WIKI_IDF_STRENGTH
+        : null;
+  if (provided == null) return DEFAULT_IDF_STRENGTH;
+  const raw = Number(provided);
+  return Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_IDF_STRENGTH;
 }
 
 function score(query, concepts, opts = {}) {
