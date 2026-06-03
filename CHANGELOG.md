@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/elliottsencan/2ts-claude/compare/v0.6.0...v0.7.0) (2026-06-03)
+
+
+### Features
+
+* split vendor templates from ambient surface; interactive /setup ([8a402b6](https://github.com/elliottsencan/2ts-claude/commit/8a402b6af4e86643accc80904b4da48379095c0d))
+* split vendor templates from the plugin's ambient surface; interactive /setup ([9f28163](https://github.com/elliottsencan/2ts-claude/commit/9f281638984f4fd80fdaf7c0df3fbb6b85349d31))
+
 ## [0.6.0](https://github.com/elliottsencan/2ts-claude/compare/v0.5.0...v0.6.0) (2026-06-03)
 
 
