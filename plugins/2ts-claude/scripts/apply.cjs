@@ -716,7 +716,7 @@ function pruneEmptyDirs(dir, stopAt) {
 function catalog() {
   return components.allComponents().map((id) => {
     const c = components.COMPONENTS[id];
-    return { id, title: c.title, description: c.description, default: !!c.default, scope: components.scopeOf(id) };
+    return { id, title: c.title, description: c.description, default: !!c.default, scope: components.scopeOf(id), notes: c.notes || [] };
   });
 }
 
@@ -731,6 +731,29 @@ function printCatalog(list) {
 }
 
 // ---------- reporting ----------
+// Post-apply caveats / action items for the selected components (repo settings,
+// env vars, follow-ups the engine can't perform itself). Keyed by component id;
+// only components that declare `notes` appear. /setup surfaces these to the user.
+function notesFor(componentIds) {
+  const out = {};
+  for (const id of componentIds) {
+    const notes = components.COMPONENTS[id].notes;
+    if (Array.isArray(notes) && notes.length) out[id] = notes;
+  }
+  return out;
+}
+
+function printNotes(notes) {
+  const ids = Object.keys(notes);
+  if (!ids.length) return;
+  const lines = ['', 'Heads-up — these components need follow-up the engine can\'t do for you:'];
+  for (const id of ids) {
+    lines.push(`  ${id}:`);
+    for (const note of notes[id]) lines.push(`    - ${note}`);
+  }
+  process.stderr.write(lines.join('\n') + '\n');
+}
+
 function printHuman(plan, ctx, mode) {
   const lines = [];
   lines.push(`Repo:   ${ctx.repoRoot}`);
@@ -792,10 +815,12 @@ function main() {
       components: componentIds,
       ops: plan.ops.map((o) => ({ component: o.component, scope: o.scope, type: o.type, target: o.target, action: o.action, conflict: o.conflict, conflictKey: o.conflictKey, detail: o.detail })),
       conflicts: plan.conflicts,
+      notes: notesFor(componentIds),
     };
     process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
   } else {
     printHuman(plan, ctx, opts.mode);
+    printNotes(notesFor(componentIds));
     if (opts.mode === 'apply') process.stderr.write('\nApplied. Review `git diff`, then commit so teammates get it.\n');
   }
 }

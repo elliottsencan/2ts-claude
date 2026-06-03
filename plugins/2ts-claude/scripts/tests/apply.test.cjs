@@ -339,6 +339,42 @@ describe('durable repo-file components', () => {
   });
 });
 
+describe('release-please', () => {
+  const dests = ['.github/workflows/release-please.yml', 'release-please-config.json', '.release-please-manifest.json'];
+
+  it('lands all three files, records them, re-runs as noop, and removes cleanly', () => {
+    apply(['release-please']);
+
+    for (const dest of dests) {
+      assert.ok(fs.existsSync(path.join(repo, dest)), `${dest} created`);
+      const m = readJson('.claude/.2ts-claude.json');
+      const entry = m.files.find((f) => f.path === dest);
+      assert.ok(entry, `${dest} recorded in manifest`);
+      assert.equal(entry.sha256, merge.sha256(read(dest)), `${dest} hash matches`);
+    }
+
+    // Config carries the chosen node release-type; manifest bootstraps at 0.0.0.
+    assert.equal(readJson('release-please-config.json').packages['.']['release-type'], 'node');
+    assert.equal(readJson('.release-please-manifest.json')['.'], '0.0.0');
+
+    const second = plan(['release-please']);
+    assert.equal(second.conflicts.length, 0);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    for (const dest of dests) assert.ok(!fs.existsSync(path.join(repo, dest)), `${dest} removed`);
+  });
+
+  it('exposes post-apply notes in the catalog so /setup can surface the GitHub-setting + node caveats', () => {
+    const entry = engine.catalog().find((c) => c.id === 'release-please');
+    assert.ok(entry, 'release-please in catalog');
+    assert.ok(Array.isArray(entry.notes) && entry.notes.length >= 3, 'carries notes');
+    assert.ok(entry.notes.some((n) => /create and approve pull requests/i.test(n)), 'flags the GitHub repo setting');
+    assert.ok(entry.notes.some((n) => /release-type: node/i.test(n)), 'flags the node assumption');
+  });
+});
+
 describe('workflow-hooks lint-on-edit', () => {
   it('vendors lint-on-edit and wires it once on PostToolUse Edit|Write', () => {
     apply(['workflow-hooks']);
