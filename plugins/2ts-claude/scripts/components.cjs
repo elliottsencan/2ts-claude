@@ -93,6 +93,13 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/github/secret-scan.yml', dest: '.github/workflows/secret-scan.yml' }],
   },
 
+  editorconfig: {
+    title: 'EditorConfig',
+    description: 'Add a portable .editorconfig (utf-8, lf, final newline, 2-space) every editor and agent honors.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/editorconfig', dest: '.editorconfig' }],
+  },
+
   agents: {
     title: 'Review agents',
     description: 'Add the code-reviewer and bug-hunter subagents.',

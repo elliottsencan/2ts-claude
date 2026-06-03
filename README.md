@@ -64,6 +64,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `statusline` | | Status line: model, branch, context-usage bar |
 | `mcp` | | `context7` and `playwright` MCP servers |
 | `ci-secret-scan` | | gitleaks GitHub Action that scans for committed secrets (CI, no local friction) |
+| `editorconfig` | | Portable `.editorconfig` (utf-8, lf, final newline, 2-space) |
 | `agents` | | `code-reviewer`, `bug-hunter` subagents |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
