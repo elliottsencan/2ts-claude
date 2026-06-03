@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0](https://github.com/elliottsencan/2ts-claude/compare/v0.5.0...v0.6.0) (2026-06-03)
+
+
+### Features
+
+* add local component scope ([15bd7e7](https://github.com/elliottsencan/2ts-claude/commit/15bd7e789f72ffca97b8e2c6a24fb920162a47aa))
+* add wiki scorer, /wiki command, and surface hook (local scope) ([d139b26](https://github.com/elliottsencan/2ts-claude/commit/d139b26b0c12a720f12664dbae19ccc154059657))
+* local component scope + personal wiki query (/wiki + surface hook) ([962dd87](https://github.com/elliottsencan/2ts-claude/commit/962dd87199baaf21bf91000aeaa3d13d9c8ca270))
+
 ## [0.5.0](https://github.com/elliottsencan/2ts-claude/compare/v0.4.0...v0.5.0) (2026-06-03)
 
 
