@@ -296,6 +296,7 @@ describe('durable repo-file components', () => {
   const cases = [
     { id: 'editorconfig', dest: '.editorconfig' },
     { id: 'gitattributes', dest: '.gitattributes' },
+    { id: 'pr-template', dest: '.github/pull_request_template.md' },
   ];
 
   for (const { id, dest } of cases) {

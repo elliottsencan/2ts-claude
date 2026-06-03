@@ -107,6 +107,13 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/gitattributes', dest: '.gitattributes' }],
   },
 
+  'pr-template': {
+    title: 'PR template',
+    description: 'Add a short .github/pull_request_template.md (summary, changes, testing, risk/rollback, linked issues).',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/github/pull_request_template.md', dest: '.github/pull_request_template.md' }],
+  },
+
   agents: {
     title: 'Review agents',
     description: 'Add the code-reviewer and bug-hunter subagents.',
