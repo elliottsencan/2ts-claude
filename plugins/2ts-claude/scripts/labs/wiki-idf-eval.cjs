@@ -20,6 +20,17 @@
  *
  * Run:  node plugins/2ts-claude/scripts/labs/wiki-idf-eval.cjs [--index <path>]
  * Default index: ~/.claude/wiki-cache/index.json
+ *
+ * CAVEAT — read before trusting the recall number. The POSITIVE prompts here are
+ * SYNTHETIC (generated from each concept's own fields), so recall@1 is optimistic
+ * and IDF looks recall-neutral/positive on them. Validated against the real
+ * hand-labeled set in the elliottsencan.com site lab (scripts/fixtures/
+ * wiki-surface-prompts.json), IDF s=1.0 at threshold 0.15 actually trades a small
+ * amount of recall (recall@3 70%->65%) for a large precision gain (precision@1
+ * 78%->87%) and elimination of generic-token false positives (trap nag rate
+ * 60%->0%). The FP win is real on both sets; the recall COST only shows up on the
+ * real-labeled positives. Treat this harness as a fast directional signal, not the
+ * final word — the site lab's labeled prompts are the ground truth.
  */
 
 const fs = require('fs');
