@@ -95,6 +95,7 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 Installed by `scripts/install-git-helpers.sh` (also run by `install.sh` for this repo):
 
 - `git acp` — refuses to run on `main`, then `git add . && git commit && git push` in one shot.
+- `git sync` — fetches and merges `origin/main` into the current branch (auto-stashing any dirty work). A plain merge, so it needs no force-push and composes with `git acp`; on conflicts it stops for you to resolve.
 - `git commit` with no message generates one from the staged diff with `claude --model haiku`, via a `prepare-commit-msg` hook. Override the model with `CLAUDE_COMMIT_MODEL`.
 
 The aliases are global. The commit-message hook is per-repo — run `scripts/install-git-helpers.sh` inside each repo where you want it.

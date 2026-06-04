@@ -6,6 +6,7 @@
 #   1. Global git aliases (machine-wide, idempotent):
 #        git acp  — refuse on main, then `git add . && git commit && git push`
 #        git cc   — `git commit` flagged for Claude (CLAUDE=1)
+#        git sync — fetch + merge origin/main into the current branch (autostash)
 #   2. A per-repo `prepare-commit-msg` hook that, on a message-less commit,
 #      generates one with `claude --model haiku`.
 #
@@ -16,9 +17,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_SRC="$SCRIPT_DIR/../templates/hooks/prepare-commit-msg"
 
-echo "Setting global git aliases (acp, cc)..."
+echo "Setting global git aliases (acp, cc, sync)..."
 git config --global alias.acp '!f() { branch=$(git rev-parse --abbrev-ref HEAD); if [ "$branch" = "main" ]; then echo "Cannot use acp on main branch"; exit 1; fi; git add . && git commit && git push; }; f'
 git config --global alias.cc '!f() { CLAUDE=1 git commit "$@"; }; f'
+git config --global alias.sync '!f() { git fetch origin && git merge --no-edit --autostash origin/main; }; f'
 
 # Install the commit-message hook into the current repo, if we're in one.
 if git rev-parse --git-dir > /dev/null 2>&1; then
@@ -42,3 +44,4 @@ echo "Done."
 echo "  git acp           # add . + commit (Claude message) + push"
 echo "  git commit        # commit with a Claude-generated message"
 echo "  CLAUDE_COMMIT_MODEL=sonnet git commit   # override the model"
+echo "  git sync          # fetch + merge origin/main into the current branch"
