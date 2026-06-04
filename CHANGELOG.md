@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/elliottsencan/2ts-claude/compare/v0.9.0...v0.10.0) (2026-06-04)
+
+
+### Features
+
+* add `git sync` helper to merge origin/main into the current branch ([6ed4e2f](https://github.com/elliottsencan/2ts-claude/commit/6ed4e2f3738e1c72a89b1373fbdcdd5c6bf969eb))
+* add `git sync` helper to merge origin/main into the current branch ([7dd98ae](https://github.com/elliottsencan/2ts-claude/commit/7dd98aef1066fb9805511b35c3a580e2e1eab523))
+
 ## [0.9.0](https://github.com/elliottsencan/2ts-claude/compare/v0.8.0...v0.9.0) (2026-06-03)
 
 
