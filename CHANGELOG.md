@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/elliottsencan/2ts-claude/compare/v0.11.0...v0.12.0) (2026-06-05)
+
+
+### Features
+
+* **wiki-query:** IDF token weighting (on by default at strength 1.0) ([#21](https://github.com/elliottsencan/2ts-claude/issues/21)) ([f098660](https://github.com/elliottsencan/2ts-claude/commit/f098660f3a9b327128f9c11d4c6e2e0eee60e5b4))
+
 ## [0.11.0](https://github.com/elliottsencan/2ts-claude/compare/v0.10.0...v0.11.0) (2026-06-05)
 
 
