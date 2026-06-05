@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/elliottsencan/2ts-claude/compare/v0.10.0...v0.11.0) (2026-06-05)
+
+
+### Features
+
+* PR toolkit components (auto descriptions + review/checks/ready/split) ([#25](https://github.com/elliottsencan/2ts-claude/issues/25)) ([57b94f3](https://github.com/elliottsencan/2ts-claude/commit/57b94f3331ecb9faa4bc1a456a4cb179f896fff2))
+
+
+### Bug Fixes
+
+* **wiki-surface:** sanitize and frame surfaced wiki block ([9cf7eaf](https://github.com/elliottsencan/2ts-claude/commit/9cf7eaf9dba4387083b11c2a967430c28aa709db))
+
 ## [0.10.0](https://github.com/elliottsencan/2ts-claude/compare/v0.9.0...v0.10.0) (2026-06-04)
 
 
