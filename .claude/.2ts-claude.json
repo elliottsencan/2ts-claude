@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "pluginVersion": "0.10.0",
+  "components": [
+    "safety-hooks",
+    "conventions",
+    "settings",
+    "pr-template",
+    "command-pr",
+    "command-update-pr-description",
+    "command-address-review-comments",
+    "command-fix-pr-checks",
+    "command-pr-ready",
+    "command-pr-split"
+  ],
+  "files": [
+    {
+      "path": ".claude/hooks/pre-tool-use/block-dangerous-commands.cjs",
+      "sha256": "4b2f5e6c16d9ad3fa5ded8f1aa6355582605f7d5523cf4b000f7c1ea76e277f0"
+    },
+    {
+      "path": ".claude/hooks/pre-tool-use/protect-secrets.cjs",
+      "sha256": "21b38a55898738bb300d5d54bd877f4ee66e1da8f60668bbe14c77675ac61f10"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "5cff216fa27a68eade43dd097afe254ae27810d7f17eed36bd44bc75c40ed04d"
+    },
+    {
+      "path": ".claude/commands/pr.md",
+      "sha256": "b2b7f4705ea5663a0878d61be42f0330cb50eb4012421891d32ebfffbe2d7e2e"
+    },
+    {
+      "path": ".claude/commands/update-pr-description.md",
+      "sha256": "e4ed2d20ffa668bf283f5ba8a9b149db6efb0075ae44505a3952672375dec1cf"
+    },
+    {
+      "path": ".claude/commands/address-review-comments.md",
+      "sha256": "4aa24e29d7020671b633d00bdbbb39426a34ddaf3df85cc881b3a81bbcfecc12"
+    },
+    {
+      "path": ".claude/commands/fix-pr-checks.md",
+      "sha256": "ddabb6ff6af09849a54a4b949e22c640850621dccbe4da63521384c90efbde2f"
+    },
+    {
+      "path": ".claude/commands/pr-ready.md",
+      "sha256": "0701e628595cb913f81de12f91f5fdcddf3b0a4ad17b17391e719eb7fb12a729"
+    },
+    {
+      "path": ".claude/commands/pr-split.md",
+      "sha256": "6d28a881de26f3f75970300cd8dca40391d06b826e7bd1085e2d72fb804a2dd3"
+    }
+  ],
+  "settings": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(node --test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(eslint:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/*.pem)",
+      "Read(./**/id_rsa)",
+      "Read(./**/id_ed25519)",
+      "Read(./**/*.key)",
+      "Read(./secrets/**)"
+    ],
+    "hooks": [
+      {
+        "event": "PreToolUse",
+        "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-tool-use/block-dangerous-commands.cjs\""
+      },
+      {
+        "event": "PreToolUse",
+        "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-tool-use/protect-secrets.cjs\""
+      }
+    ],
+    "scalars": {
+      "permissions.defaultMode": "plan"
+    }
+  },
+  "claudeMd": {
+    "conventions": {
+      "sha256": "2cc512cc06be8f64181d27fb9a99255eb7590a6f0ea9ba0c1361ebf2b2481a77",
+      "file": "CLAUDE.md"
+    }
+  },
+  "mcp": []
+}
