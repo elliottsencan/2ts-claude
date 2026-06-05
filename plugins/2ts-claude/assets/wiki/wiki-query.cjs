@@ -262,6 +262,64 @@ function slugTokenSet(slug) {
   return set;
 }
 
+// --- IDF weighting -----------------------------------------------------------
+//
+// A flat scorer treats every query token as equally informative, so a token that
+// appears in most entries (e.g. "agent", df 29/45) can clear the threshold on its
+// own — a precision leak. IDF down-weights such common tokens using corpus
+// document frequency. ON by default at strength 1.0 (the wiki-idf-eval lab found
+// it lifts recall@1 94%->96% while cutting off-topic firing 33%->0% at the live
+// 0.15 threshold). Override with WIKI_IDF_STRENGTH / opts.idfStrength; set it to 0
+// to fall back to the flat baseline (every weight 1, byte-identical to pre-IDF).
+//
+// strength s tunes the effect: weight(t) = idf(t) ** s, with the smoothed
+// idf(t) = ln((N + 1) / (df(t) + 1)) + 1  (always >= 1). s = 0 -> all weights 1
+// (flat baseline); larger s -> common tokens contribute progressively less.
+
+// The combined match-token set for one concept — the union the scorer can hit, so
+// document frequency is computed over exactly what query tokens are matched against.
+function conceptTokenSet(c) {
+  const set = new Set();
+  for (const t of slugTokenSet(String(c && c.slug ? c.slug : ''))) set.add(t);
+  for (const t of aliasTokenSet(c && Array.isArray(c.aliases) ? c.aliases : [])) set.add(t);
+  for (const t of tokenize(String(c && c.title ? c.title : ''))) set.add(t);
+  for (const t of tokenize(String(c && c.summary ? c.summary : ''))) set.add(t);
+  for (const t of tokenize(String(c && c.body ? c.body : ''))) set.add(t);
+  return set;
+}
+
+// Memoize df by corpus identity: the eval runs hundreds of queries over one
+// corpus, and a live hook would reuse the same cached concept array per process.
+const DF_CACHE = new WeakMap();
+function documentFrequencies(list) {
+  let cached = DF_CACHE.get(list);
+  if (cached) return cached;
+  const df = new Map();
+  for (const c of list) {
+    for (const t of conceptTokenSet(c)) df.set(t, (df.get(t) || 0) + 1);
+  }
+  cached = { df, n: list.length };
+  DF_CACHE.set(list, cached);
+  return cached;
+}
+
+const DEFAULT_IDF_STRENGTH = 1.0;
+
+// Resolve strength from opts (highest precedence), then WIKI_IDF_STRENGTH, else the
+// default. An explicit 0 is honored (disables IDF) — only an absent/invalid value
+// falls back to the default. Negative values are clamped to the default.
+function resolveIdfStrength(opts) {
+  const provided =
+    opts && opts.idfStrength != null
+      ? opts.idfStrength
+      : process.env.WIKI_IDF_STRENGTH != null && process.env.WIKI_IDF_STRENGTH !== ''
+        ? process.env.WIKI_IDF_STRENGTH
+        : null;
+  if (provided == null) return DEFAULT_IDF_STRENGTH;
+  const raw = Number(provided);
+  return Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_IDF_STRENGTH;
+}
+
 function score(query, concepts, opts = {}) {
   try {
     const options = opts && typeof opts === 'object' ? opts : {};
@@ -276,7 +334,20 @@ function score(query, concepts, opts = {}) {
       return [];
     }
 
-    const denom = queryTokens.length * MAX_TOKEN_WEIGHT;
+    // Per-token weights. With IDF off (default) every weight is 1, so denom and
+    // raw reduce exactly to the baseline (queryTokens.length * MAX_TOKEN_WEIGHT).
+    const idfStrength = resolveIdfStrength(options);
+    let tokenWeights;
+    if (idfStrength > 0) {
+      const { df, n } = documentFrequencies(list);
+      tokenWeights = queryTokens.map((t) => {
+        const idf = Math.log((n + 1) / ((df.get(t) || 0) + 1)) + 1; // >= 1
+        return Math.pow(idf, idfStrength);
+      });
+    } else {
+      tokenWeights = queryTokens.map(() => 1);
+    }
+    const denom = MAX_TOKEN_WEIGHT * tokenWeights.reduce((a, b) => a + b, 0);
 
     const scored = list.map((c) => {
       const slug = String(c && c.slug ? c.slug : '');
@@ -292,7 +363,8 @@ function score(query, concepts, opts = {}) {
       const bodyTokens = new Set(tokenize(body));
 
       let raw = 0;
-      for (const qt of queryTokens) {
+      for (let i = 0; i < queryTokens.length; i++) {
+        const qt = queryTokens[i];
         // Each token earns at most MAX_TOKEN_WEIGHT (the best field it hits),
         // keeping the normalization bound tight and deterministic.
         let best = 0;
@@ -301,7 +373,8 @@ function score(query, concepts, opts = {}) {
         if (titleTokens.has(qt)) best = Math.max(best, WEIGHTS.title);
         if (summaryTokens.has(qt)) best = Math.max(best, WEIGHTS.summary);
         if (bodyTokens.has(qt)) best = Math.max(best, WEIGHTS.body);
-        raw += best;
+        // IDF scales each token's contribution; weight is 1 when IDF is off.
+        raw += best * tokenWeights[i];
       }
 
       const normalized = denom > 0 ? Math.min(raw / denom, 1) : 0;
