@@ -183,6 +183,78 @@ const COMPONENTS = {
     ops: [{ type: 'vendorFile', src: 'assets/commands/pr.md', dest: '.claude/commands/pr.md' }],
   },
 
+  // PR toolkit: Claude-assisted, gh-driven commands for working a pull request,
+  // plus two label-triggered GitHub Actions that (re)generate a PR description
+  // from the repo's pull_request_template.md while preserving the original body.
+  // The two CI variants are alternatives (pick either or both); each is gated on
+  // its own label so they never collide.
+  'command-update-pr-description': {
+    title: 'update-pr-description command',
+    description: "Add the /update-pr-description command: regenerate a PR's body from the PR template, preserving the original.",
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/commands/update-pr-description.md', dest: '.claude/commands/update-pr-description.md' }],
+  },
+
+  'command-address-review-comments': {
+    title: 'address-review-comments command',
+    description: 'Add the /address-review-comments command: work through unresolved PR review threads and fix each in code.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/commands/address-review-comments.md', dest: '.claude/commands/address-review-comments.md' }],
+  },
+
+  'command-fix-pr-checks': {
+    title: 'fix-pr-checks command',
+    description: "Add the /fix-pr-checks command: diagnose a PR's failing CI from the logs and fix it.",
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/commands/fix-pr-checks.md', dest: '.claude/commands/fix-pr-checks.md' }],
+  },
+
+  'command-pr-ready': {
+    title: 'pr-ready command',
+    description: 'Add the /pr-ready command: run a definition-of-done checklist, then flip the PR draft→ready.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/commands/pr-ready.md', dest: '.claude/commands/pr-ready.md' }],
+  },
+
+  'command-pr-split': {
+    title: 'pr-split command',
+    description: 'Add the /pr-split command: propose how to split an oversized branch into reviewable PRs.',
+    default: false,
+    ops: [{ type: 'vendorFile', src: 'assets/commands/pr-split.md', dest: '.claude/commands/pr-split.md' }],
+  },
+
+  'pr-describe-ai': {
+    title: 'PR description (AI, CI)',
+    description: "GitHub Action: generate a PR description with Claude when the 'describe' label is added (fills the PR template, preserves the original).",
+    default: false,
+    notes: [
+      "Add an ANTHROPIC_API_KEY repo (or org) secret — the workflow can't authenticate without it.",
+      "Enable Settings → Actions → General → Workflow permissions → read/write (needs pull-requests: write).",
+      "Trigger by adding the 'describe' label to a PR. PRs from forks don't receive secrets, so the run no-ops there by design.",
+      'Alternative to pr-describe-scaffold (no API key). You can install both — they use separate labels.',
+    ],
+    ops: [
+      { type: 'vendorFile', src: 'assets/github/pr-describe/workflow-ai.yml', dest: '.github/workflows/pr-describe-ai.yml' },
+      { type: 'vendorFile', src: 'assets/github/pr-describe/apply-description.cjs', dest: '.github/scripts/pr-describe-apply.cjs' },
+    ],
+  },
+
+  'pr-describe-scaffold': {
+    title: 'PR description (scaffold, CI)',
+    description: "GitHub Action: deterministically scaffold a PR description from commits + changed files when the 'describe-scaffold' label is added (no API key).",
+    default: false,
+    notes: [
+      "Enable Settings → Actions → General → Workflow permissions → read/write (needs pull-requests: write).",
+      "Trigger by adding the 'describe-scaffold' label to a PR.",
+      'Alternative to pr-describe-ai (which writes a richer, Claude-generated description). You can install both — they use separate labels.',
+    ],
+    ops: [
+      { type: 'vendorFile', src: 'assets/github/pr-describe/workflow-scaffold.yml', dest: '.github/workflows/pr-describe-scaffold.yml' },
+      { type: 'vendorFile', src: 'assets/github/pr-describe/generate.cjs', dest: '.github/scripts/pr-describe-generate.cjs' },
+      { type: 'vendorFile', src: 'assets/github/pr-describe/apply-description.cjs', dest: '.github/scripts/pr-describe-apply.cjs' },
+    ],
+  },
+
   // Personal (local scope): query your own elliottsencan.com reading wiki from
   // whatever repo you're working in. Serves a background-refreshed cache of the
   // canonical post-synthesis index (ELLIOTTSENCAN_WIKI_INDEX_URL), falling back

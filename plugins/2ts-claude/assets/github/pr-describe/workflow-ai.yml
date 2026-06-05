@@ -1,0 +1,55 @@
+name: pr-describe-ai
+
+# Generate a PR description with Claude when the `describe` label is added. The
+# generated text fills the repo's pull_request_template.md; the original body is
+# preserved as a collapsed reference (see .github/scripts/pr-describe-apply.cjs),
+# and re-adding the label regenerates only the managed section.
+#
+# Requires an ANTHROPIC_API_KEY repo/org secret. Uses `pull_request` (not
+# pull_request_target), so secrets are NOT exposed to PRs from forks — those runs
+# simply can't authenticate and are expected to no-op; keep it that way rather
+# than switching to pull_request_target, which would run untrusted code with the
+# key. Also needs: Settings → Actions → General → Workflow permissions →
+# read/write (for pull-requests: write).
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  describe:
+    if: github.event.label.name == 'describe'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: '--allowedTools Read,Bash(git:*),Write'
+          prompt: |
+            Write a pull-request description for PR #${{ github.event.pull_request.number }}
+            (base: ${{ github.base_ref }}, head: ${{ github.head_ref }}).
+
+            1. Inspect the actual changes:
+                 git diff origin/${{ github.base_ref }}...HEAD
+                 git log --format='%s' origin/${{ github.base_ref }}...HEAD
+            2. Follow the repository's PR template if present
+               (.github/pull_request_template.md) — fill each of its sections.
+               Otherwise use: Summary, Changes, Testing / how to verify,
+               Risk & rollback, Linked issues.
+            3. Be specific and trace every claim to the diff. Don't invent testing
+               that didn't happen. Lead the summary with the user-facing outcome.
+            4. Write ONLY the description markdown (no preamble, no code fences) to
+               the file /tmp/pr-description.md. Do not edit the PR yourself.
+      - name: Apply description (preserve original)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/pr-describe-apply.cjs "${{ github.event.pull_request.number }}" /tmp/pr-description.md
