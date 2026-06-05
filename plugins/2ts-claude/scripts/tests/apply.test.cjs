@@ -299,6 +299,11 @@ describe('durable repo-file components', () => {
     { id: 'pr-template', dest: '.github/pull_request_template.md' },
     { id: 'dependabot', dest: '.github/dependabot.yml' },
     { id: 'command-pr', dest: '.claude/commands/pr.md' },
+    { id: 'command-update-pr-description', dest: '.claude/commands/update-pr-description.md' },
+    { id: 'command-address-review-comments', dest: '.claude/commands/address-review-comments.md' },
+    { id: 'command-fix-pr-checks', dest: '.claude/commands/fix-pr-checks.md' },
+    { id: 'command-pr-ready', dest: '.claude/commands/pr-ready.md' },
+    { id: 'command-pr-split', dest: '.claude/commands/pr-split.md' },
   ];
 
   for (const { id, dest } of cases) {
@@ -372,6 +377,63 @@ describe('release-please', () => {
     assert.ok(Array.isArray(entry.notes) && entry.notes.length >= 3, 'carries notes');
     assert.ok(entry.notes.some((n) => /create and approve pull requests/i.test(n)), 'flags the GitHub repo setting');
     assert.ok(entry.notes.some((n) => /release-type: node/i.test(n)), 'flags the node assumption');
+  });
+});
+
+describe('pr-describe CI components', () => {
+  const variants = [
+    {
+      id: 'pr-describe-ai',
+      dests: ['.github/workflows/pr-describe-ai.yml', '.github/scripts/pr-describe-apply.cjs'],
+      noteRe: /ANTHROPIC_API_KEY/,
+    },
+    {
+      id: 'pr-describe-scaffold',
+      dests: [
+        '.github/workflows/pr-describe-scaffold.yml',
+        '.github/scripts/pr-describe-generate.cjs',
+        '.github/scripts/pr-describe-apply.cjs',
+      ],
+      noteRe: /describe-scaffold/,
+    },
+  ];
+
+  for (const { id, dests, noteRe } of variants) {
+    it(`${id}: lands its files, records them, re-runs as noop, and removes cleanly`, () => {
+      apply([id]);
+
+      for (const dest of dests) {
+        assert.ok(fs.existsSync(path.join(repo, dest)), `${dest} created`);
+        const m = readJson('.claude/.2ts-claude.json');
+        const entry = m.files.find((f) => f.path === dest);
+        assert.ok(entry, `${dest} recorded in manifest`);
+        assert.equal(entry.sha256, merge.sha256(read(dest)), `${dest} hash matches`);
+      }
+
+      const second = plan([id]);
+      assert.equal(second.conflicts.length, 0);
+      assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+
+      const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+      engine.removeAll(ctx);
+      for (const dest of dests) assert.ok(!fs.existsSync(path.join(repo, dest)), `${dest} removed`);
+    });
+
+    it(`${id}: carries setup notes for /setup to surface`, () => {
+      const entry = engine.catalog().find((c) => c.id === id);
+      assert.ok(entry, `${id} in catalog`);
+      assert.ok(Array.isArray(entry.notes) && entry.notes.length >= 1, 'carries notes');
+      assert.ok(entry.notes.some((n) => noteRe.test(n)), `flags ${noteRe}`);
+    });
+  }
+
+  it('both variants share an identical apply script (so installing both is conflict-free)', () => {
+    apply(['pr-describe-ai', 'pr-describe-scaffold']);
+    const dest = '.github/scripts/pr-describe-apply.cjs';
+    assert.ok(fs.existsSync(path.join(repo, dest)), 'shared apply script present');
+    const second = plan(['pr-describe-ai', 'pr-describe-scaffold']);
+    assert.equal(second.conflicts.length, 0, 'no conflict from the shared file');
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
   });
 });
 

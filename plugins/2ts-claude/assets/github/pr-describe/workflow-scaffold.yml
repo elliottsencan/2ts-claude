@@ -1,0 +1,36 @@
+name: pr-describe-scaffold
+
+# Deterministically scaffold a PR description from commits + changed files when the
+# `describe-scaffold` label is added — no API key required. The scaffold fills the
+# repo's pull_request_template.md; the original body is preserved as a collapsed
+# reference (see .github/scripts/pr-describe-apply.cjs), and re-adding the label
+# regenerates only the managed section.
+#
+# Needs: Settings → Actions → General → Workflow permissions → read/write
+# (for pull-requests: write).
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scaffold:
+    if: github.event.label.name == 'describe-scaffold'
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_BASE_REF: ${{ github.base_ref }}
+      GITHUB_HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate scaffold
+        run: node .github/scripts/pr-describe-generate.cjs > /tmp/pr-description.md
+      - name: Apply description (preserve original)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/pr-describe-apply.cjs "${{ github.event.pull_request.number }}" /tmp/pr-description.md

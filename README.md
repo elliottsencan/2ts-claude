@@ -81,6 +81,13 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
 | `command-pr` | | `/pr` command (drafts a copy-ready PR title + body) |
+| `command-update-pr-description` | | `/update-pr-description` — regenerate a PR's body from the PR template, preserving the original |
+| `command-address-review-comments` | | `/address-review-comments` — work unresolved review threads and fix each in code |
+| `command-fix-pr-checks` | | `/fix-pr-checks` — diagnose a PR's failing CI from the logs and fix it |
+| `command-pr-ready` | | `/pr-ready` — definition-of-done checklist, then flip draft→ready |
+| `command-pr-split` | | `/pr-split` — propose how to split an oversized branch into reviewable PRs |
+| `pr-describe-ai` | | GitHub Action: generate a PR description with Claude on the `describe` label (needs `ANTHROPIC_API_KEY`) |
+| `pr-describe-scaffold` | | GitHub Action: deterministic PR-description scaffold on the `describe-scaffold` label (no key) |
 | `command-wiki` | | 🔒 `/wiki` — query your personal reading wiki on demand (background-refreshed cache of `$ELLIOTTSENCAN_WIKI_INDEX_URL`, offline fallback to `$ELLIOTTSENCAN_WIKI_DIR`) |
 | `wiki-surface` | | 🔒 quietly surface relevant wiki entries on each prompt, above a confidence threshold |
 
