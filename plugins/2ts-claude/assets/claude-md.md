@@ -44,6 +44,10 @@
 - Prefer a small set of high-value test cases over exhaustive "for completeness" coverage.
 - Add a regression test when fixing a non-trivial bug.
 
+### Reviewing code
+
+- Before reviewing a diff, read `.claude/2ts-claude/review-lessons.md` if it exists and check the change against every rule in it — these are confirmed past findings that must not recur.
+
 ### Git
 
 - Commit/push only when asked. Branch before committing if on the default branch.

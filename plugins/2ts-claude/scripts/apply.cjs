@@ -204,6 +204,21 @@ function applyVendorFile(ctx, planned, decision) {
   else m.files.push({ path: planned.target, sha256: planned._newHash });
 }
 
+// seedFile: copy a file into the repo ONCE, if absent. Unlike vendorFile it is
+// deliberately NOT hashed into the manifest, so the file is treated as
+// append-only data the repo owns: later edits/appends never register as a
+// conflict, and `--remove` never deletes it. Existence is the only signal.
+function planSeedFile(ctx, op) {
+  const destAbs = path.join(ctx.repoRoot, op.dest);
+  const exists = fs.existsSync(destAbs);
+  return { type: 'seedFile', target: op.dest, action: exists ? 'noop' : 'create', conflict: false, conflictKey: `seed:${op.dest}`, _src: op.src, _destAbs: destAbs };
+}
+function applySeedFile(ctx, planned) {
+  if (planned.action === 'noop') return;
+  fs.mkdirSync(path.dirname(planned._destAbs), { recursive: true });
+  fs.writeFileSync(planned._destAbs, fs.readFileSync(srcAbs(ctx, planned._src), 'utf8'));
+}
+
 const AGENTS_IMPORT_ID = 'agents-import';
 
 function hasAgentsImport(claudeMd) {
@@ -403,6 +418,7 @@ function applyMergeMcp(ctx, planned, decision) {
 
 const PLANNERS = {
   vendorFile: planVendorFile,
+  seedFile: planSeedFile,
   conventions: planConventions,
   mergeSettings: planMergeSettings,
   settingsScalar: planSettingsScalar,
@@ -411,6 +427,7 @@ const PLANNERS = {
 };
 const APPLIERS = {
   vendorFile: applyVendorFile,
+  seedFile: applySeedFile,
   conventions: applyConventions,
   mergeSettings: applyMergeSettings,
   settingsScalar: applySettingsScalar,

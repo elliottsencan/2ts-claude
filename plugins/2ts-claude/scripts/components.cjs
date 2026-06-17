@@ -14,6 +14,7 @@
 //
 // Operation types (handled in apply.cjs):
 //   vendorFile      { src, dest, executable? }   copy a file into the repo, hashed in the manifest
+//   seedFile        { src, dest }                 copy a file ONCE if absent; not hashed, so appends never conflict and --remove never deletes it
 //   conventions     { id, src }                   upsert a marker block (AGENTS.md if present, else CLAUDE.md) + @AGENTS.md import
 //   mergeSettings   { src }                       deep-merge a settings JSON (allow/deny union, scalars set-if-absent)
 //   settingsScalar  { keyPath, value }            set a dotted settings key only if absent
@@ -27,6 +28,12 @@ function hookCommand(rel) {
 function vendorHook(srcRel, destRel) {
   return { type: 'vendorFile', src: srcRel, dest: destRel };
 }
+
+// The review-ratchet lessons file: seeded once, then owned by the repo as
+// append-only data. Shared by the `review-lessons` and `agents` components so
+// they stay in sync (the op is idempotent, so installing both is harmless).
+const REVIEW_LESSONS_DEST = '.claude/2ts-claude/review-lessons.md';
+const seedReviewLessons = { type: 'seedFile', src: 'assets/review-lessons.md', dest: REVIEW_LESSONS_DEST };
 
 const COMPONENTS = {
   'safety-hooks': {
@@ -154,12 +161,21 @@ const COMPONENTS = {
 
   agents: {
     title: 'Review agents',
-    description: 'Add the code-reviewer and bug-hunter subagents.',
+    description: 'Add the code-reviewer and bug-hunter subagents (with the review-lessons ratchet they consult).',
     default: false,
     ops: [
       { type: 'vendorFile', src: 'assets/agents/code-reviewer.md', dest: '.claude/agents/code-reviewer.md' },
       { type: 'vendorFile', src: 'assets/agents/bug-hunter.md', dest: '.claude/agents/bug-hunter.md' },
+      // Seed the lessons file the agents read every run so it exists out of the box.
+      seedReviewLessons,
     ],
+  },
+
+  'review-lessons': {
+    title: 'Review lessons (ratchet)',
+    description: 'Seed an append-only review-lessons file the review agents consult and grow each run.',
+    default: false,
+    ops: [seedReviewLessons],
   },
 
   'skill-code-standards': {
