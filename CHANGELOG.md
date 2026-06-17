@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/elliottsencan/2ts-claude/compare/v0.12.0...v0.13.0) (2026-06-17)
+
+
+### Features
+
+* **review:** review-lessons ratchet (seedFile op), conventions pointer, pin review model ([#28](https://github.com/elliottsencan/2ts-claude/issues/28)) ([e0147f9](https://github.com/elliottsencan/2ts-claude/commit/e0147f9dfb76ab5dfd6b0934f8f704de28e2ed1a))
+
 ## [0.12.0](https://github.com/elliottsencan/2ts-claude/compare/v0.11.0...v0.12.0) (2026-06-05)
 
 
