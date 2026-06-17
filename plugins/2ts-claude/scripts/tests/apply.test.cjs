@@ -649,3 +649,65 @@ describe('manifest', () => {
     assert.throws(() => engine.makeContext(repo, PLUGIN_ROOT), /unparseable|MANIFEST_CORRUPT|manifest/i);
   });
 });
+
+describe('review-lessons ratchet (seedFile)', () => {
+  const dest = '.claude/2ts-claude/review-lessons.md';
+  const filesInManifest = () => readJson('.claude/.2ts-claude.json').files.map((f) => f.path);
+
+  it('appears in the catalog as a shared component', () => {
+    const entry = engine.catalog().find((c) => c.id === 'review-lessons');
+    assert.ok(entry, 'review-lessons in catalog');
+    assert.equal(entry.scope, 'shared');
+  });
+
+  it('seeds the file if absent, records the component, but does NOT hash-track the file', () => {
+    apply(['review-lessons']);
+    const abs = path.join(repo, dest);
+    assert.ok(fs.existsSync(abs), 'lessons file seeded');
+    assert.match(read(dest), /append-only/i, 'seed content landed');
+
+    const m = readJson('.claude/.2ts-claude.json');
+    assert.ok(m.components.includes('review-lessons'), 'component recorded');
+    // The whole point: it is append-only data, never an immutable hashed template.
+    assert.ok(!filesInManifest().includes(dest), 'lessons file is not in manifest files[]');
+  });
+
+  it('re-runs as a noop with no conflict', () => {
+    apply(['review-lessons']);
+    const second = plan(['review-lessons']);
+    assert.equal(second.conflicts.length, 0);
+    assert.ok(second.ops.every((o) => o.action === 'noop'), 're-run is all noop');
+  });
+
+  it('leaves a manual append untouched on re-run (appends never conflict)', () => {
+    apply(['review-lessons']);
+    const abs = path.join(repo, dest);
+    const seeded = read(dest);
+    const lesson = '\n- Never swallow errors in catch blocks — silent failures hide real bugs\n';
+    fs.writeFileSync(abs, seeded + lesson);
+
+    const p = plan(['review-lessons']);
+    assert.equal(p.conflicts.length, 0, 'an append is not a conflict');
+    apply(['review-lessons']);
+
+    const after = read(dest);
+    assert.ok(after.includes(lesson.trim()), 'appended lesson preserved');
+    assert.ok(after.startsWith(seeded), 'seed content preserved');
+  });
+
+  it('keeps the lessons file (with appends) on remove', () => {
+    apply(['review-lessons']);
+    const abs = path.join(repo, dest);
+    fs.appendFileSync(abs, '\n- Validate external input at the boundary\n');
+    const ctx = engine.makeContext(repo, PLUGIN_ROOT);
+    engine.removeAll(ctx);
+    assert.ok(fs.existsSync(abs), 'accreted lessons survive --remove');
+    assert.match(read(dest), /Validate external input/, 'append survives remove');
+  });
+
+  it('is also seeded by the agents component', () => {
+    apply(['agents']);
+    assert.ok(fs.existsSync(path.join(repo, dest)), 'agents seeds the lessons file');
+    assert.ok(!filesInManifest().includes(dest), 'still not hash-tracked when seeded via agents');
+  });
+});

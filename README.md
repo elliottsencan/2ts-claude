@@ -77,7 +77,8 @@ node plugins/2ts-claude/scripts/apply.cjs --remove           # reverse what was 
 | `pr-template` | | `.github/pull_request_template.md` (summary, changes, testing, risk/rollback) |
 | `dependabot` | | `.github/dependabot.yml`: grouped weekly github-actions + npm updates |
 | `release-please` | | Conventional-commit releases: GitHub Action + `release-please-config.json` + manifest (changelog, version bumps, tags) |
-| `agents` | | `code-reviewer`, `bug-hunter` subagents |
+| `agents` | | `code-reviewer`, `bug-hunter` subagents (pinned model; also seed the review-lessons ratchet) |
+| `review-lessons` | | Append-only `review-lessons.md` ratchet the review agents consult and grow each run (seeded once; never clobbered). Pairs with `agents` |
 | `skill-code-standards` | | `code-standards` skill |
 | `command-handoff` | | `/handoff` command |
 | `command-pr` | | `/pr` command (drafts a copy-ready PR title + body) |
